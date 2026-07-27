@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly DUOJIN_WORKSPACE="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly DUOJIN_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly DUOJIN_WORKSPACE="$(cd "${DUOJIN_SCRIPT_DIR}/.." && pwd)"
 readonly GALAXEA_SETUP="${HOME}/galaxea/install_430/setup.bash"
 
 if [[ ! -f "${GALAXEA_SETUP}" ]]; then
