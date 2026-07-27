@@ -57,7 +57,7 @@ cd ~/duojin_ws
 脚本严格执行机器人要求的启动顺序：
 
 ```bash
-bash ~/setupcan.sh
+bash ~/setup_can.sh
 bash ~/can.sh
 cd ~/galaxea/install_430/startup_config/share/startup_config/script
 ./robot_startup.sh boot ../sessions.d/ATCStandard/R1LITEBody.d/

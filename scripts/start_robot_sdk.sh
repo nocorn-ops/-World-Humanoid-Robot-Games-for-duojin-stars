@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly SETUP_CAN_SCRIPT="${HOME}/setupcan.sh"
+readonly SETUP_CAN_SCRIPT="${HOME}/setup_can.sh"
 readonly CAN_SCRIPT="${HOME}/can.sh"
 readonly GALAXEA_ROOT="${HOME}/galaxea/install_430"
 readonly GALAXEA_SETUP="${GALAXEA_ROOT}/setup.bash"
