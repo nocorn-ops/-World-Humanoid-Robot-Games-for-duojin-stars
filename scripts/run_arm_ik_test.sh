@@ -12,8 +12,11 @@ for required_file in "${ROS_SETUP}" "${GALAXEA_SETUP}" "${DUOJIN_SETUP}"; do
   fi
 done
 
+# ROS 2/ament setup files are not nounset-safe on every Humble installation.
+set +u
 source "${ROS_SETUP}"
 source "${GALAXEA_SETUP}"
 source "${DUOJIN_SETUP}"
+set -u
 
 exec ros2 run duojin_arm_test move_arm_to_pose "$@"

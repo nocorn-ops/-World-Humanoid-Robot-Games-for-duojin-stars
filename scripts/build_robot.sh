@@ -17,8 +17,12 @@ if [[ ! -d "${DUOJIN_WORKSPACE}/src" ]]; then
   exit 1
 fi
 
+# ROS 2 Humble setup files may inspect variables that are intentionally unset.
+# Temporarily disable nounset while loading underlays, then restore strict mode.
+set +u
 source "${ROS_SETUP}"
 source "${GALAXEA_SETUP}"
+set -u
 
 cd "${DUOJIN_WORKSPACE}"
 colcon build --symlink-install
