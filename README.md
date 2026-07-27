@@ -23,6 +23,8 @@ source ~/duojin_ws/install/setup.bash
 本地开发机没有 ROS 2 Humble，因此本地只改源码和做静态检查。构建与真机运行均在
 工控机完成。不要提交或同步 `build/`、`install/`、`log/`。
 
+首次使用、完整操作顺序及故障排查见 [`docs/项目使用说明.md`](docs/项目使用说明.md)。
+
 ## 标准部署流程
 
 ### 1. 本地开发并上传
@@ -96,6 +98,7 @@ cd ~/duojin_ws
 ```text
 duojin_ws/
 ├── docs/
+│   ├── 项目使用说明.md             # 从开发到真机运行的完整操作手册
 │   └── r1_lite_interfaces.md       # 官方文档与联调记录校验后的二开接口
 ├── src/
 │   └── duojin_arm_test/            # R1 Lite 末端位姿→IK→关节跟踪验证
