@@ -1,88 +1,116 @@
 # duojin_ws
 
-夺锦之星的独立 ROS 2 overlay 工作区。这个目录只放赛队自己的代码，不包含、不修改
+夺锦之星的独立 ROS 2 overlay 工作区。仓库只保存赛队源码，不包含也不修改
 Galaxea 厂商 SDK。
 
-## Git 部署模型
+## 固定架构
+
+机器人工控机上的环境固定为：
 
 ```text
-开发机 duojin_ws
-       │ git push
-       ▼
-GitHub / Gitee / 自建 Git 服务
-       │ git clone / git pull --ff-only
-       ▼
-工控机 /home/r1lite/duojin_ws
-                         │
-                         ├── 依赖 /opt/ros/humble
-                         └── 依赖 /home/r1lite/galaxea/install
+~/galaxea/install_430       厂商 underlay，负责 HDAS、Mobiman、IK 等底层节点
+~/duojin_ws                 赛队 overlay，只负责自己的节点和比赛逻辑
 ```
 
-工控机实际运行的是 `/home/r1lite/galaxea/install`。本地
-`galaxea/install_430` 仅作为同版本 SDK 的只读接口快照，不应写入启动脚本或
-代码的绝对运行时路径。
-
-## 一键启动机械臂环境
-
-首次构建后，在工控机执行：
+`source` 只把包、消息和动态库加入当前 shell；真正通信的是两个工作区启动出的
+ROS 2 节点。项目 shell 必须先加载 SDK，再加载本工作区：
 
 ```bash
-cd /home/r1lite/duojin_ws
-./scripts/start_arm_environment.sh left
+source ~/galaxea/install_430/setup.bash
+source ~/duojin_ws/install/setup.bash
 ```
 
-脚本会加载 ROS 2、Galaxea SDK 和本工作区 overlay，复用已经存在的节点，
-并只启动缺失的 Joint Tracker 与左臂 Relaxed IK。它本身不发布运动
-目标。将 `left` 改为 `right` 可启动右臂环境。保持该终端运行；
-按 `Ctrl+C` 只会关闭由该脚本启动的节点。
+本地开发机没有 ROS 2 Humble，因此本地只改源码和做静态检查。构建与真机运行均在
+工控机完成。不要提交或同步 `build/`、`install/`、`log/`。
 
-## 首次部署到工控机
+首次使用、完整操作顺序及故障排查见 [`docs/项目使用说明.md`](docs/项目使用说明.md)。
 
-先在 GitHub、Gitee 或自建 Git 服务创建空仓库，然后在开发机为本项目添加远程并
-推送：
+## 标准部署流程
+
+### 1. 本地开发并上传
 
 ```bash
-cd /home/vedal/WorkStation/世界人型机器人运动会/duojin_ws
-git remote add origin <GIT_REPOSITORY_URL>
-git push -u origin main
+git add <本次修改的文件>
+git commit -m "..."
+git push
 ```
 
-在工控机首次下载：
+### 2. 工控机拉取并构建 overlay
 
 ```bash
-cd /home/r1lite
-git clone <GIT_REPOSITORY_URL> duojin_ws
-cd /home/r1lite/duojin_ws
+cd ~/duojin_ws
+git pull --ff-only
 ./scripts/build_robot.sh
 ```
 
-如果使用私有仓库，建议在工控机上配置只读 SSH deploy key，不要把 token 写入项目
-文件。
+`build_robot.sh` 只加载固定的 `~/galaxea/install_430/setup.bash`，然后执行
+`colcon build --symlink-install`。SDK 的生成式 setup 文件会继续加载其构建时使用的
+`/opt/ros/humble`；若工控机缺少 Humble，脚本会明确失败。
 
-## 工控机后续更新
+### 3. 启动完整 SDK
 
 ```bash
-cd /home/r1lite/duojin_ws
+cd ~/duojin_ws
+./scripts/start_robot_sdk.sh
+```
+
+脚本严格执行机器人要求的启动顺序：
+
+```bash
+bash ~/setupcan.sh
+bash ~/can.sh
+cd ~/galaxea/install_430/startup_config/share/startup_config/script
+./robot_startup.sh boot ../sessions.d/ATCStandard/R1LITEBody.d/
+```
+
+等待 30 秒后，脚本会检查 `/motion_target/` 话题是否出现。项目不再自行启动或补启动
+Joint Tracker、Relaxed IK、HDAS 等单个厂商节点，避免版本、参数和控制模式不一致。
+
+### 4. 检查控制链并运行项目节点
+
+```bash
+cd ~/duojin_ws
+./scripts/start_arm_environment.sh left
+./scripts/run_arm_ik_test.sh
+```
+
+第一条命令只检查 SDK 节点、机械臂反馈和 IK 输出，不启动任何厂商节点。第二条命令
+默认只预览目标；确认安全后才可执行：
+
+```bash
+./scripts/run_arm_ik_test.sh --ros-args -p execute:=true
+```
+
+`R1LITEBody.d` 同时会启动 `r1lite_teleop`。自主控制前必须停止该 tmux session，避免
+Gello 遥操作与赛队程序同时发布机械臂目标。执行模式检测到该 session 时会拒绝运动。
+
+## 工控机更新
+
+```bash
+cd ~/duojin_ws
 ./scripts/update_robot.sh
 ```
 
-`update_robot.sh` 只允许 fast-forward 更新，不会自动 merge，也不会覆盖工控机上的未提交
-改动。
+该脚本在工控机存在未提交修改时拒绝更新，并只执行 fast-forward 拉取，随后重新构建。
 
-## 当前结构
+## 目录
 
 ```text
 duojin_ws/
+├── docs/
+│   ├── 项目使用说明.md             # 从开发到真机运行的完整操作手册
+│   └── r1_lite_interfaces.md       # 官方文档与联调记录校验后的二开接口
 ├── src/
-│   └── duojin_arm_test/       # R1 Lite 末端位姿→IK→关节跟踪验证
+│   └── duojin_arm_test/            # R1 Lite 末端位姿→IK→关节跟踪验证
 ├── scripts/
-│   ├── build_robot.sh         # 在工控机上构建
-│   ├── start_arm_environment.sh # 一键启动厂商控制环境
-│   ├── run_arm_ik_test.sh     # 在工控机上运行测试节点
-│   ├── update_robot.sh        # git pull --ff-only 并重新构建
-│   └── deploy_to_robot.sh     # 无 Git 远程时的 rsync 备用方式
-└── .gitignore                     # 不同步 build/install/log
+│   ├── build_robot.sh              # 在工控机构建 overlay
+│   ├── start_robot_sdk.sh          # CAN + 完整 install_430 启动
+│   ├── start_arm_environment.sh    # 只检查机械臂 SDK 控制链
+│   ├── run_arm_ik_test.sh          # 运行赛队测试节点
+│   ├── update_robot.sh             # 安全拉取并重新构建
+│   └── deploy_to_robot.sh          # 无 Git 远端时的 rsync 备用方式
+└── .gitignore
 ```
 
-详细真机流程见
-[`src/duojin_arm_test/README.md`](src/duojin_arm_test/README.md)。
+机械臂真机流程见 [`src/duojin_arm_test/README.md`](src/duojin_arm_test/README.md)，
+底盘和躯干话题见 [`docs/r1_lite_interfaces.md`](docs/r1_lite_interfaces.md)。

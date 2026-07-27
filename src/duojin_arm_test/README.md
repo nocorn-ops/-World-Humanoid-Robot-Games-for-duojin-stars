@@ -1,149 +1,105 @@
-# R1 Lite 机械臂笛卡尔控制链路测试
+# R1 Lite 机械臂笛卡尔控制链测试
 
-这个 ROS 2 包用来验证本地 `install_430` 中查到、但实际由工控机
-`/home/r1lite/galaxea/install` 提供的控制链路：
+该包验证工控机 `~/galaxea/install_430` 提供的控制链：
 
 ```text
-current arm feedback
-  -> Relaxed IK forward kinematics/current EE pose
-  -> this node adds a 3 cm Cartesian Z offset
-  -> /motion_target/target_pose_arm_left
-  -> Relaxed IK
-  -> /motion_target/target_joint_state_arm_left
-  -> Joint Tracker
-  -> /motion_control/control_arm_left
-  -> HDAS
+/hdas/feedback_arm_left
+  → Relaxed IK 当前末端位姿
+  → 本节点增加小幅笛卡尔偏移
+  → /motion_target/target_pose_arm_left
+  → Relaxed IK
+  → /motion_target/target_joint_state_arm_left
+  → Joint Tracker
+  → /motion_control/control_arm_left
+  → HDAS
 ```
 
-默认目标是左臂当前末端位姿沿 `base_link` Z 轴向上平移 `0.03 m`，末端
-姿态不变。这比写死一个可能不可达的绝对坐标更适合首次真机验证。
+默认目标是左臂当前末端位姿沿 `base_link` Z 轴上移 `0.03 m`，姿态不变。
 
-## 安全行为
+## 安全约束
 
-- 默认为预览模式，不发布运动指令。
+- 默认是预览模式，不发布运动指令。
 - 笛卡尔偏移默认最大为 8 cm。
 - 没有当前末端反馈或 Relaxed IK 订阅者时拒绝执行。
 - 永远不直接发布 `hdas_msg/MotorControl`。
+- `r1lite_teleop` 运行时，执行脚本拒绝自主机械臂运动。
 
-这些检查不能证明中间路径一定无碰撞。首次试验必须清空机械臂周围，使用
-`fast_mode:=false`，操作员握住急停，且一次只测一条手臂。
+这些检查不能证明路径无碰撞。首次试验必须清空机械臂周围，一次只测试一条手臂，
+操作员握住急停。
 
-## 1. 下载到工控机
-
-项目推送到 GitHub、Gitee 或自建 Git 服务后，在工控机执行：
-
-```bash
-cd /home/r1lite
-git clone <GIT_REPOSITORY_URL> duojin_ws
-```
-
-`.gitignore` 会确保仓库中不包含开发机生成的 `build/`、`install/`、`log/`。
-
-## 2. 在工控机构建
+## 1. 工控机构建
 
 ```bash
-cd /home/r1lite/duojin_ws
+cd ~/duojin_ws
 ./scripts/build_robot.sh
 ```
 
-构建时的 overlay 顺序固定为：
+构建顺序为 `~/galaxea/install_430` underlay → `~/duojin_ws/install` overlay。
 
-```text
-/opt/ros/humble
-  → /home/r1lite/galaxea/install
-  → /home/r1lite/duojin_ws/install
-```
-
-## 3. 启动厂商控制链
-
-推荐在工控机上用一个命令启动左臂环境：
+## 2. 启动完整厂商系统
 
 ```bash
-cd /home/r1lite/duojin_ws
+cd ~/duojin_ws
+./scripts/start_robot_sdk.sh
+```
+
+该命令配置 CAN 并通过 `R1LITEBody.d` 启动 HDAS、Joint Tracker、左右臂 Relaxed IK
+等完整厂商系统。不要再手动启动第二份控制器。
+
+## 3. 检查左臂控制链
+
+```bash
+cd ~/duojin_ws
 ./scripts/start_arm_environment.sh left
 ```
 
-该脚本会检查并复用已运行的节点，只启动缺失的 Joint Tracker 和
-Relaxed IK，且不会发布任何运动目标。保持此终端运行，然后在另一终端
-运行预览或执行测试。
+脚本只检查以下内容，不启动任何 SDK 节点：
 
-也可按下面的方式手动启动。
+- `/hdas/feedback_arm_left` 有实时反馈；
+- `/r1_lite_jointTracker_demo_node` 已运行；
+- `/relaxed_ik_left` 已运行；
+- `/relaxed_ik/motion_control/pose_ee_arm_left` 有输出。
 
-先检查自动启动系统是否已经运行了 Joint Tracker。如果已经有同名节点，不要再启
-第二份控制器。
+右臂把 `left` 改成 `right`。
 
-```bash
-source /opt/ros/humble/setup.bash
-source /home/r1lite/galaxea/install/setup.bash
-ros2 node list | grep -E 'jointTracker|relaxed_ik'
-```
+## 4. 预览与执行
 
-如果没有运行，分别在两个终端启动 R1 Lite 节点：
+预览目标，机械臂不会运动：
 
 ```bash
-# 终端 1：关节轨迹跟踪与 MotorControl 输出
-source /opt/ros/humble/setup.bash
-source /home/r1lite/galaxea/install/setup.bash
-ros2 launch mobiman r1_lite_jointTrackerdemo_launch.py fast_mode:=false
-
-# 终端 2：左臂笛卡尔逆运动学
-source /opt/ros/humble/setup.bash
-source /home/r1lite/galaxea/install/setup.bash
-ros2 launch mobiman r1_lite_left_arm_relaxed_ik_launch.py
-```
-
-该 Joint Tracker 会把 `/opt/galaxea/body/hardware.json` 校验为 `R1-LITE`。
-
-## 4. 预览目标（机械臂不动）
-
-```bash
-cd /home/r1lite/duojin_ws
 ./scripts/run_arm_ik_test.sh
 ```
 
-日志应显示当前末端坐标和 Z 值增加 0.03 m 后的目标，但机械臂不应运动。
-
-## 5. 执行 3 cm 运动
-
-检查打印的目标点、清空运动区域并握住急停后执行：
+执行前停止可能争夺目标话题的 Gello 遥操作 session：
 
 ```bash
-cd /home/r1lite/duojin_ws
+tmux kill-session -t r1lite_teleop
 ./scripts/run_arm_ik_test.sh --ros-args -p execute:=true
 ```
 
-如果改测右臂，先启动右臂 IK，再传入 `arm:=right`：
+右臂测试：
 
 ```bash
-ros2 launch mobiman r1_lite_right_arm_relaxed_ik_launch.py
+./scripts/start_arm_environment.sh right
 ./scripts/run_arm_ik_test.sh --ros-args \
   -p arm:=right -p execute:=true
 ```
 
-偏移量可以在 `max_delta_m` 限制内修改。例如让左臂末端沿 `base_link` X
-轴前进 2 cm：
+修改偏移的示例：
 
 ```bash
 ./scripts/run_arm_ik_test.sh --ros-args \
   -p delta_x:=0.02 -p delta_z:=0.0 -p execute:=true
 ```
 
-## 6. 逐级验证
+## 5. 逐级诊断
 
 ```bash
-# Relaxed IK/FK 计算的当前末端位姿
 ros2 topic echo /relaxed_ik/motion_control/pose_ee_arm_left --once
-
-# 本测试包发布的末端位姿目标
 ros2 topic echo /motion_target/target_pose_arm_left
-
-# Relaxed IK 生成的关节目标
 ros2 topic echo /motion_target/target_joint_state_arm_left
-
-# HDAS 发布的真实关节反馈
-ros2 topic echo /hdas/feedback_arm_left
+ros2 topic echo /hdas/feedback_arm_left --once
 ```
 
-如果末端目标已发布，但没有关节目标，检查 Relaxed IK 进程。如果已经有关节
-目标但机械臂不动，检查 Joint Tracker、`/motion_control/control_arm_left`
-和 HDAS 状态 Topic。
+末端目标存在但无关节目标时检查 Relaxed IK；关节目标存在但机械臂不动时检查
+Joint Tracker、`/motion_control/control_arm_left` 和 HDAS 状态。
