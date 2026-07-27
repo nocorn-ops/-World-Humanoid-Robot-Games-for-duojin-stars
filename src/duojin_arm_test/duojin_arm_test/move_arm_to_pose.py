@@ -54,18 +54,26 @@ class ArmCartesianNudge(Node):
             f"/relaxed_ik/motion_control/pose_ee_arm_{self.arm}"
         )
 
-        qos = QoSProfile(
+        target_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            durability=DurabilityPolicy.VOLATILE,
+        )
+        current_pose_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
         )
-        self.target_pub = self.create_publisher(PoseStamped, self.target_topic, qos)
+        self.target_pub = self.create_publisher(
+            PoseStamped, self.target_topic, target_qos
+        )
         self.current_pose_sub = self.create_subscription(
             PoseStamped,
             self.current_pose_topic,
             self._on_current_pose,
-            qos,
+            current_pose_qos,
         )
         self.current_pose: Optional[PoseStamped] = None
 

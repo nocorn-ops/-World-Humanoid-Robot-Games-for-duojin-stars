@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly DUOJIN_WORKSPACE="/home/r1lite/duojin_ws"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly DUOJIN_WORKSPACE="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 if [[ ! -d "${DUOJIN_WORKSPACE}/.git" ]]; then
   echo "Not a Git checkout: ${DUOJIN_WORKSPACE}" >&2

@@ -1,28 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly ROS_SETUP="/opt/ros/humble/setup.bash"
-readonly GALAXEA_SETUP="/home/r1lite/galaxea/install/setup.bash"
-readonly DUOJIN_WORKSPACE="/home/r1lite/duojin_ws"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly DUOJIN_WORKSPACE="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly GALAXEA_SETUP="${HOME}/galaxea/install_430/setup.bash"
 
-for required_file in "${ROS_SETUP}" "${GALAXEA_SETUP}"; do
-  if [[ ! -f "${required_file}" ]]; then
-    echo "Required environment file not found: ${required_file}" >&2
-    exit 1
-  fi
-done
+if [[ ! -f "${GALAXEA_SETUP}" ]]; then
+  echo "Galaxea SDK environment not found: ${GALAXEA_SETUP}" >&2
+  exit 1
+fi
 
 if [[ ! -d "${DUOJIN_WORKSPACE}/src" ]]; then
   echo "Workspace source directory not found: ${DUOJIN_WORKSPACE}/src" >&2
   exit 1
 fi
 
-# ROS 2 Humble setup files may inspect variables that are intentionally unset.
-# Temporarily disable nounset while loading underlays, then restore strict mode.
+# install_430 is the fixed vendor underlay. Its generated setup file loads the
+# Humble prefix it was built against, so do not source a second SDK workspace.
 set +u
-source "${ROS_SETUP}"
 source "${GALAXEA_SETUP}"
 set -u
+
+for required_command in ros2 colcon; do
+  if ! command -v "${required_command}" >/dev/null 2>&1; then
+    echo "${required_command} is unavailable after sourcing ${GALAXEA_SETUP}." >&2
+    echo "Build this workspace on the robot IPC with ROS 2 Humble installed." >&2
+    exit 1
+  fi
+done
 
 cd "${DUOJIN_WORKSPACE}"
 colcon build --symlink-install
