@@ -22,6 +22,20 @@ GitHub / Gitee / 自建 Git 服务
 `galaxea/install_430` 仅作为同版本 SDK 的只读接口快照，不应写入启动脚本或
 代码的绝对运行时路径。
 
+## 一键启动机械臂环境
+
+首次构建后，在工控机执行：
+
+```bash
+cd /home/r1lite/duojin_ws
+./scripts/start_arm_environment.sh left
+```
+
+脚本会加载 ROS 2、Galaxea SDK 和本工作区 overlay，复用已经存在的节点，
+并只启动缺失的 Joint Tracker 与左臂 Relaxed IK。它本身不发布运动
+目标。将 `left` 改为 `right` 可启动右臂环境。保持该终端运行；
+按 `Ctrl+C` 只会关闭由该脚本启动的节点。
+
 ## 首次部署到工控机
 
 先在 GitHub、Gitee 或自建 Git 服务创建空仓库，然后在开发机为本项目添加远程并
@@ -63,6 +77,7 @@ duojin_ws/
 │   └── duojin_arm_test/       # R1 Lite 末端位姿→IK→关节跟踪验证
 ├── scripts/
 │   ├── build_robot.sh         # 在工控机上构建
+│   ├── start_arm_environment.sh # 一键启动厂商控制环境
 │   ├── run_arm_ik_test.sh     # 在工控机上运行测试节点
 │   ├── update_robot.sh        # git pull --ff-only 并重新构建
 │   └── deploy_to_robot.sh     # 无 Git 远程时的 rsync 备用方式

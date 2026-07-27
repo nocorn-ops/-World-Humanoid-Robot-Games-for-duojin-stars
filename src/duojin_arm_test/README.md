@@ -56,6 +56,19 @@ cd /home/r1lite/duojin_ws
 
 ## 3. 启动厂商控制链
 
+推荐在工控机上用一个命令启动左臂环境：
+
+```bash
+cd /home/r1lite/duojin_ws
+./scripts/start_arm_environment.sh left
+```
+
+该脚本会检查并复用已运行的节点，只启动缺失的 Joint Tracker 和
+Relaxed IK，且不会发布任何运动目标。保持此终端运行，然后在另一终端
+运行预览或执行测试。
+
+也可按下面的方式手动启动。
+
 先检查自动启动系统是否已经运行了 Joint Tracker。如果已经有同名节点，不要再启
 第二份控制器。
 
