@@ -3,13 +3,13 @@ set -euo pipefail
 
 readonly DUOJIN_WORKSPACE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DUOJIN_SDK_START="${DUOJIN_WORKSPACE}/scripts/start_robot_sdk.sh"
-readonly DUOJIN_ARM_CHECK="${DUOJIN_WORKSPACE}/scripts/start_arm_environment.sh"
+readonly DUOJIN_CONTROL_CHECK="${DUOJIN_WORKSPACE}/scripts/check_robot_control_chains.sh"
 readonly DUOJIN_SDK_SETUP="${HOME}/galaxea/install_430/setup.bash"
 readonly DUOJIN_OVERLAY="${DUOJIN_WORKSPACE}/install/setup.bash"
 
 for required_file in \
   "${DUOJIN_SDK_START}" \
-  "${DUOJIN_ARM_CHECK}" \
+  "${DUOJIN_CONTROL_CHECK}" \
   "${DUOJIN_SDK_SETUP}" \
   "${DUOJIN_OVERLAY}"; do
   if [[ ! -f "${required_file}" ]]; then
@@ -37,7 +37,7 @@ else
 fi
 
 echo
-"${DUOJIN_ARM_CHECK}" left
+"${DUOJIN_CONTROL_CHECK}"
 
 echo
 echo "=== Duojin environment is ready ==="

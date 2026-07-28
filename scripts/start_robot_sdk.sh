@@ -41,5 +41,5 @@ if ! ros2 topic list | grep -Fq "/motion_target/"; then
 fi
 
 echo "SDK motion-target topics are online."
-echo "Run scripts/start_arm_environment.sh to perform the arm-specific checks."
+echo "Run scripts/check_robot_control_chains.sh to verify every required device chain."
 echo "Note: R1LITEBody.d also starts r1lite_teleop; stop that tmux session before autonomous arm control."

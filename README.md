@@ -35,7 +35,8 @@ cd ~/duojin_ws
 ```
 
 `start.sh` 自动配置 CAN、启动完整 `install_430` SDK、等待 ROS 话题就绪、关闭
-`r1lite_teleop`，并检查左臂反馈与 Relaxed IK。成功后会进入带 `[duojin]` 提示符的
+`r1lite_teleop`，并检查底盘、躯干、双臂、双夹爪、IMU 与三组相机的完整控制/反馈链。
+成功后会进入带 `[duojin]` 提示符的
 环境 Shell，其中已经加载 SDK underlay 和项目 overlay，可以直接执行现有机械臂脚本：
 
 ```bash
@@ -92,7 +93,7 @@ cd ~/galaxea/install_430/startup_config/share/startup_config/script
 ./robot_startup.sh boot ../sessions.d/ATCStandard/R1LITEBody.d/
 ```
 
-等待 30 秒后，脚本会检查 `/motion_target/` 话题，自动关闭遥操作，并检查左臂控制链。
+等待 30 秒后，脚本会检查 `/motion_target/` 话题，自动关闭遥操作，并检查全部设备链路。
 项目不再自行补启动 Joint Tracker、Relaxed IK、HDAS 等单个厂商节点。
 
 ### 4. 检查控制链并运行项目节点
@@ -124,7 +125,7 @@ cd ~/duojin_ws
 
 ```text
 duojin_ws/
-├── start.sh                       # CAN + SDK + 关闭遥操作 + 左臂环境检查
+├── start.sh                       # CAN + SDK + 关闭遥操作 + 整机链路检查
 ├── stop.sh                        # 停止 SDK 和当前用户的 ROS 2 进程
 ├── docs/
 │   ├── 项目使用说明.md             # 从开发到真机运行的完整操作手册
@@ -134,6 +135,7 @@ duojin_ws/
 ├── scripts/
 │   ├── build_robot.sh              # 在工控机构建 overlay
 │   ├── start_robot_sdk.sh          # CAN + 完整 install_430 启动
+│   ├── check_robot_control_chains.sh # 只读检查整机设备链路
 │   ├── start_arm_environment.sh    # 只检查机械臂 SDK 控制链
 │   ├── run_arm_ik_test.sh          # 运行赛队测试节点
 │   ├── update_robot.sh             # 安全拉取并重新构建
