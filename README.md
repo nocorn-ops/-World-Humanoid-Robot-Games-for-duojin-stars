@@ -25,7 +25,36 @@ source ~/duojin_ws/install/setup.bash
 
 首次使用、完整操作顺序及故障排查见 [`docs/项目使用说明.md`](docs/项目使用说明.md)。
 
-## 标准部署流程
+## 一键启动和关闭
+
+项目已经在工控机编译完成后，日常启动只需要：
+
+```bash
+cd ~/duojin_ws
+./start.sh
+```
+
+`start.sh` 自动配置 CAN、启动完整 `install_430` SDK、等待 ROS 话题就绪、关闭
+`r1lite_teleop`，并检查左臂反馈与 Relaxed IK。成功后会进入带 `[duojin]` 提示符的
+环境 Shell，其中已经加载 SDK underlay 和项目 overlay，可以直接执行现有机械臂脚本：
+
+```bash
+./scripts/run_arm_ik_test.sh
+```
+
+也可以直接执行自己的 `ros2 launch ...`。输入 `exit` 只退出环境 Shell，不关闭已经在
+tmux 中运行的 SDK；完整关闭请从另一个终端执行 `./stop.sh`。
+
+停止完整 SDK 和当前用户残留的 ROS 2 进程：
+
+```bash
+cd ~/duojin_ws
+./stop.sh
+```
+
+`start.sh` 和 `stop.sh` 都不执行 Git 更新、项目编译或比赛 launch。
+
+## 部署流程
 
 ### 1. 本地开发并上传
 
@@ -47,11 +76,11 @@ git pull --ff-only
 `colcon build --symlink-install`。SDK 的生成式 setup 文件会继续加载其构建时使用的
 `/opt/ros/humble`；若工控机缺少 Humble，脚本会明确失败。
 
-### 3. 启动完整 SDK
+### 3. 启动环境
 
 ```bash
 cd ~/duojin_ws
-./scripts/start_robot_sdk.sh
+./start.sh
 ```
 
 脚本严格执行机器人要求的启动顺序：
@@ -63,26 +92,24 @@ cd ~/galaxea/install_430/startup_config/share/startup_config/script
 ./robot_startup.sh boot ../sessions.d/ATCStandard/R1LITEBody.d/
 ```
 
-等待 30 秒后，脚本会检查 `/motion_target/` 话题是否出现。项目不再自行启动或补启动
-Joint Tracker、Relaxed IK、HDAS 等单个厂商节点，避免版本、参数和控制模式不一致。
+等待 30 秒后，脚本会检查 `/motion_target/` 话题，自动关闭遥操作，并检查左臂控制链。
+项目不再自行补启动 Joint Tracker、Relaxed IK、HDAS 等单个厂商节点。
 
 ### 4. 检查控制链并运行项目节点
 
 ```bash
 cd ~/duojin_ws
-./scripts/start_arm_environment.sh left
 ./scripts/run_arm_ik_test.sh
 ```
 
-第一条命令只检查 SDK 节点、机械臂反馈和 IK 输出，不启动任何厂商节点。第二条命令
-默认只预览目标；确认安全后才可执行：
+该命令默认只预览目标；确认安全后才可执行：
 
 ```bash
 ./scripts/run_arm_ik_test.sh --ros-args -p execute:=true
 ```
 
-`R1LITEBody.d` 同时会启动 `r1lite_teleop`。自主控制前必须停止该 tmux session，避免
-Gello 遥操作与赛队程序同时发布机械臂目标。执行模式检测到该 session 时会拒绝运动。
+`R1LITEBody.d` 同时会启动 `r1lite_teleop`，`start.sh` 会自动关闭该 tmux session。
+执行模式如果再次检测到它，会拒绝运动。
 
 ## 工控机更新
 
@@ -97,6 +124,8 @@ cd ~/duojin_ws
 
 ```text
 duojin_ws/
+├── start.sh                       # CAN + SDK + 关闭遥操作 + 左臂环境检查
+├── stop.sh                        # 停止 SDK 和当前用户的 ROS 2 进程
 ├── docs/
 │   ├── 项目使用说明.md             # 从开发到真机运行的完整操作手册
 │   └── r1_lite_interfaces.md       # 官方文档与联调记录校验后的二开接口
