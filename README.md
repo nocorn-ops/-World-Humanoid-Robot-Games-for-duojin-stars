@@ -57,8 +57,55 @@ cd ~/duojin_ws
 
 `start.sh` 自动配置 CAN、启动完整 `install_430` SDK、等待 ROS 话题就绪、关闭
 `r1lite_teleop`，并检查底盘、躯干、双臂、双夹爪、IMU 与三组相机的完整控制/反馈链。
-成功后会进入带 `[duojin]` 提示符的
-环境 Shell，其中已经加载 SDK underlay 和项目 overlay，可以直接执行现有机械臂脚本：
+检查通过后，它还会在 `duojin_arm_api` tmux 会话中自动启动唯一的机械臂 API
+preview server，最后进入带 `[duojin]` 提示符的环境 Shell。此时比赛程序可以直接调用
+六个 Action、两个实时末端坐标话题或 Python API；默认请求只做预览，不发布运动目标。
+
+```bash
+# 仅在清场、底盘制动、无外部控制者且操作员握住急停后使用
+./start.sh --enable-arm-motion
+```
+
+无参数 `./start.sh` 永远不授权真机运动。真机**关节**运动需要以上正向启动参数，且每个
+Goal 仍必须再显式设置 `execute=true`；Python 函数的默认 `execute=False` 始终只 preview。
+末端 `move_to`/`move_by` 的物理执行当前被安全门禁用，因为厂商 Relaxed IK 会在项目校验前直接
+发布关节目标；完成 IK 输入/输出隔离前只能使用其 preview。
+左右臂分别暴露
+`/duojin/arm/{left,right}/{move_to,move_by,move_joints}`
+Action，比赛 Python 程序推荐使用
+`duojin_robot_interface.arm_client.ArmClient`。完整前置条件、ROS 命令、Python
+示例和分级真机验收见
+[`docs/runbooks/arm-motion-api.md`](docs/runbooks/arm-motion-api.md)。
+
+在 `start.sh` 打开的 `[duojin]` Shell 中，最小 Python 调用是：
+
+```python
+from duojin_robot_interface import get_pose, move_by, move_to
+
+def preview_left_target(target_x_m, target_y_m, target_z_m):
+    return move_to(
+        target_x_m, target_y_m, target_z_m,
+        arm="left", frame_id="base_link", execute=False,
+    )
+```
+
+三个坐标是 `base_link` 中的绝对米值，不是相对增量；`execute=False` 是安全 preview。
+
+相对位移和当前坐标查询的最小用法：
+
+```python
+pose = get_pose(arm="left")
+preview = move_by(0.01, 0.0, 0.0, arm="left", execute=False)
+print(pose.frame_id, pose.position_xyz, pose.orientation_xyzw)
+```
+
+`move_by` 默认在 `base_link` 轴方向上加位移，单位为 m，并保持当前朝向。终端实时显示：
+
+```bash
+ros2 run duojin_robot_interface arm_pose_display --ros-args -p arm:=left
+```
+
+现有诊断脚本仍可用于单次接口检查，但只允许 preview：
 
 ```bash
 ./scripts/run_arm_ik_test.sh
@@ -74,7 +121,8 @@ cd ~/duojin_ws
 ./stop.sh
 ```
 
-`start.sh` 和 `stop.sh` 都不执行 Git 更新、项目编译或比赛 launch。
+`start.sh` 和 `stop.sh` 都不执行 Git 更新、项目编译或比赛 launch；`stop.sh` 会先在
+SDK 反馈仍在线时停止机械臂 API，再关闭厂商 SDK。全机只能运行一份 API server。
 
 ## 部署流程
 
@@ -117,21 +165,23 @@ cd ~/galaxea/install_430/startup_config/share/startup_config/script
 等待 30 秒后，脚本会检查 `/motion_target/` 话题，自动关闭遥操作，并检查全部设备链路。
 项目不再自行补启动 Joint Tracker、Relaxed IK、HDAS 等单个厂商节点。
 
-### 4. 检查控制链并运行项目节点
+### 4. 预览旧 IK 诊断，或运行统一 API
 
 ```bash
 cd ~/duojin_ws
 ./scripts/run_arm_ik_test.sh
 ```
 
-该命令默认只预览目标；确认安全后才可执行：
+该旧脚本只用于 preview，禁止传入 `execute:=true`。厂商 Relaxed IK
+在收到 Pose 后会直接向 Joint Tracker 发布关节目标，这个副作用发生在
+项目能完成事前关节限幅之前；因此无论是旧脚本还是统一 API，Pose
+物理执行都在完成 IK 输入/输出隔离前禁用。比赛程序应使用统一
+`move_to(..., execute=False)` 做 Pose preview。
 
-```bash
-./scripts/run_arm_ik_test.sh --ros-args -p execute:=true
-```
-
-`R1LITEBody.d` 同时会启动 `r1lite_teleop`，`start.sh` 会自动关闭该 tmux session。
-执行模式如果再次检测到它，会拒绝运动。
+需要真机运动时，当前只使用统一 API 的 `move_joints`：以
+`./start.sh --enable-arm-motion` 显式打开 server 级许可，完成运行手册的
+前置检查后，再对经验证的关节目标显式传入 `execute=true`。具体步骤见
+[`docs/runbooks/arm-motion-api.md`](docs/runbooks/arm-motion-api.md)。
 
 ## 工控机更新
 
@@ -150,19 +200,24 @@ duojin_ws/
 ├── stop.sh                        # 停止 SDK 和当前用户的 ROS 2 进程
 ├── docs/
 │   ├── 项目使用说明.md             # 从开发到真机运行的完整操作手册
-│   └── r1_lite_interfaces.md       # 官方文档与联调记录校验后的二开接口
+│   ├── r1_lite_interfaces.md       # 官方文档与联调记录校验后的二开接口
+│   └── runbooks/arm-motion-api.md  # 机械臂 API 使用、安全和真机验证
 ├── src/
+│   ├── duojin_interfaces/          # 赛队自定义机械臂 Action 契约
+│   ├── duojin_robot_interface/     # SDK 适配、安全门与 Python 客户端
 │   └── duojin_arm_test/            # R1 Lite 末端位姿→IK→关节跟踪验证
 ├── scripts/
 │   ├── build_robot.sh              # 在工控机构建 overlay
 │   ├── start_robot_sdk.sh          # CAN + 完整 install_430 启动
 │   ├── check_robot_control_chains.sh # 只读检查整机设备链路
 │   ├── start_arm_environment.sh    # 只检查机械臂 SDK 控制链
-│   ├── run_arm_ik_test.sh          # 运行赛队测试节点
+│   ├── run_arm_ik_test.sh          # 旧笛卡尔 IK 链路的 preview-only 诊断
 │   ├── update_robot.sh             # 安全拉取并重新构建
 │   └── deploy_to_robot.sh          # 无 Git 远端时的 rsync 备用方式
 └── .gitignore
 ```
 
-机械臂真机流程见 [`src/duojin_arm_test/README.md`](src/duojin_arm_test/README.md)，
-底盘和躯干话题见 [`docs/r1_lite_interfaces.md`](docs/r1_lite_interfaces.md)。
+旧 IK 链路的预览诊断见
+[`src/duojin_arm_test/README.md`](src/duojin_arm_test/README.md)；统一机械臂 API 的安全
+真机流程见 [`docs/runbooks/arm-motion-api.md`](docs/runbooks/arm-motion-api.md)。底盘和躯干话题见
+[`docs/r1_lite_interfaces.md`](docs/r1_lite_interfaces.md)。

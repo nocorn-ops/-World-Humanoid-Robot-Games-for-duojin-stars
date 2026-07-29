@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish a small Cartesian arm motion through Galaxea Relaxed IK.
+"""Preview a small Cartesian target for the Galaxea Relaxed IK chain.
 
 The node reads the current end-effector pose produced by ``relaxed_ik``, keeps
 the current orientation, and asks the end effector to move by a small offset.
@@ -29,8 +29,6 @@ class ArmCartesianNudge(Node):
         self.declare_parameter("max_delta_m", 0.08)
         self.declare_parameter("execute", False)
         self.declare_parameter("timeout_sec", 15.0)
-        self.declare_parameter("publish_count", 5)
-        self.declare_parameter("publish_period_sec", 0.10)
 
         self.arm = str(self.get_parameter("arm").value).lower()
         if self.arm not in ("left", "right"):
@@ -42,10 +40,7 @@ class ArmCartesianNudge(Node):
         self.max_delta_m = float(self.get_parameter("max_delta_m").value)
         self.execute = bool(self.get_parameter("execute").value)
         self.timeout_sec = float(self.get_parameter("timeout_sec").value)
-        self.publish_count = int(self.get_parameter("publish_count").value)
-        self.publish_period_sec = float(
-            self.get_parameter("publish_period_sec").value
-        )
+        self.solver_frame = "torso_link3"
 
         self._validate_parameters()
 
@@ -54,20 +49,11 @@ class ArmCartesianNudge(Node):
             f"/relaxed_ik/motion_control/pose_ee_arm_{self.arm}"
         )
 
-        target_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=1,
-            durability=DurabilityPolicy.VOLATILE,
-        )
         current_pose_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
-        )
-        self.target_pub = self.create_publisher(
-            PoseStamped, self.target_topic, target_qos
         )
         self.current_pose_sub = self.create_subscription(
             PoseStamped,
@@ -90,10 +76,11 @@ class ArmCartesianNudge(Node):
             )
         if self.timeout_sec <= 0.0:
             raise ValueError("timeout_sec must be positive")
-        if self.publish_count < 1:
-            raise ValueError("publish_count must be at least 1")
-        if self.publish_period_sec <= 0.0:
-            raise ValueError("publish_period_sec must be positive")
+        if self.execute:
+            raise RuntimeError(
+                "Cartesian diagnostic execution is disabled: Relaxed IK publishes "
+                "joint targets before project-side validation"
+            )
 
     def _on_current_pose(self, msg: PoseStamped) -> None:
         self.current_pose = msg
@@ -103,7 +90,7 @@ class ArmCartesianNudge(Node):
         deadline = time.monotonic() + self.timeout_sec
         while rclpy.ok() and time.monotonic() < deadline:
             rclpy.spin_once(self, timeout_sec=0.10)
-            if self.current_pose is not None and self.target_pub.get_subscription_count() > 0:
+            if self.current_pose is not None and self.count_subscribers(self.target_topic) > 0:
                 return True
 
         if self.current_pose is None:
@@ -111,7 +98,7 @@ class ArmCartesianNudge(Node):
                 f"No current end-effector pose received from {self.current_pose_topic}. "
                 f"Start the {self.arm}-arm Relaxed IK node and verify arm feedback."
             )
-        if self.target_pub.get_subscription_count() == 0:
+        if self.count_subscribers(self.target_topic) == 0:
             self.get_logger().error(
                 f"No subscriber on {self.target_topic}. The Relaxed IK node is not ready."
             )
@@ -133,7 +120,7 @@ class ArmCartesianNudge(Node):
 
         target = PoseStamped()
         target.header.stamp = self.get_clock().now().to_msg()
-        target.header.frame_id = "base_link"
+        target.header.frame_id = self.solver_frame
         target.pose.position.x = current.position.x + self.delta_x
         target.pose.position.y = current.position.y + self.delta_y
         target.pose.position.z = current.position.z + self.delta_z
@@ -154,7 +141,7 @@ class ArmCartesianNudge(Node):
         current = self.current_pose.pose.position
         goal = target.pose.position
         self.get_logger().info(
-            f"Current {self.arm} EE position in base_link: "
+            f"Current {self.arm} EE solver coordinates in {self.solver_frame}: "
             f"({current.x:.4f}, {current.y:.4f}, {current.z:.4f}) m"
         )
         self.get_logger().info(
@@ -163,23 +150,10 @@ class ArmCartesianNudge(Node):
             f"{self.delta_z:.3f}) m; orientation unchanged"
         )
 
-        if not self.execute:
-            self.get_logger().warning(
-                "PREVIEW ONLY: no command was published. Inspect the target and rerun "
-                "with '--ros-args -p execute:=true' while holding the emergency stop."
-            )
-            return True
-
         self.get_logger().warning(
-            f"EXECUTING Cartesian target on {self.target_topic}. Keep the emergency stop ready."
+            "PREVIEW ONLY: no command was published. Physical Cartesian execution "
+            "remains disabled until the Relaxed IK input/output path is isolated."
         )
-        for _ in range(self.publish_count):
-            target.header.stamp = self.get_clock().now().to_msg()
-            self.target_pub.publish(target)
-            rclpy.spin_once(self, timeout_sec=0.0)
-            time.sleep(self.publish_period_sec)
-
-        self.get_logger().info("Target published; the Joint Tracker now owns execution.")
         return True
 
 

@@ -1,31 +1,33 @@
-# R1 Lite 机械臂笛卡尔控制链测试
+# R1 Lite 机械臂笛卡尔链路预览诊断
 
-该包验证工控机 `~/galaxea/install_430` 提供的控制链：
+该包只用于预览诊断工控机 `~/galaxea/install_430` 提供的笛卡尔链路。
+当前允许的数据流在计算并打印目标后结束：
 
 ```text
 /hdas/feedback_arm_left
   → Relaxed IK 当前末端位姿
   → 本节点增加小幅笛卡尔偏移
-  → /motion_target/target_pose_arm_left
-  → Relaxed IK
-  → /motion_target/target_joint_state_arm_left
-  → Joint Tracker
-  → /motion_control/control_arm_left
-  → HDAS
+  → 打印 preview 目标
+  → 结束，不发布 /motion_target/*
 ```
 
-默认目标是左臂当前末端位姿沿 `base_link` Z 轴上移 `0.03 m`，姿态不变。
+默认目标是把厂商 Relaxed IK 当前 FK 数值沿求解坐标系 `torso_link3` 的 Z 轴增加
+`0.03 m`，姿态不变。该厂商诊断话题的 header 不能作为公共坐标语义；需要
+`base_link` 绝对坐标和真实 TF 转换时，必须使用统一 API 的 `move_to` preview。
 
 ## 安全约束
 
-- 默认是预览模式，不发布运动指令。
+- 该诊断只允许 preview，禁止传入 `execute:=true`。
 - 笛卡尔偏移默认最大为 8 cm。
-- 没有当前末端反馈或 Relaxed IK 订阅者时拒绝执行。
+- 没有当前末端反馈或 Relaxed IK 订阅者时诊断失败。
+- 只订阅反馈和读取 ROS 图，不创建或发布任何 `/motion_target/*` publisher。
 - 永远不直接发布 `hdas_msg/MotorControl`。
-- `r1lite_teleop` 运行时，执行脚本拒绝自主机械臂运动。
+- 比赛程序和新测试应使用统一机械臂 API，不应依赖本测试包。
 
-这些检查不能证明路径无碰撞。首次试验必须清空机械臂周围，一次只测试一条手臂，
-操作员握住急停。
+厂商 Relaxed IK 在收到 Pose 时会直接向 Joint Tracker 发布关节目标，
+这个副作用发生在项目能事前校验 IK 关节输出之前。因此在完成 IK
+输入/输出隔离前，Pose 物理执行被禁止；清场、急停和小偏移也不能弥补
+这个发布前安全门缺口。
 
 ## 1. 工控机构建
 
@@ -62,44 +64,46 @@ cd ~/duojin_ws
 
 右臂把 `left` 改成 `right`。
 
-## 4. 预览与执行
+## 4. 仅预览诊断
 
-预览目标，机械臂不会运动：
+预览左臂目标，机械臂不会运动：
 
 ```bash
 ./scripts/run_arm_ik_test.sh
 ```
 
-执行前停止可能争夺目标话题的 Gello 遥操作 session：
-
-```bash
-tmux kill-session -t r1lite_teleop
-./scripts/run_arm_ik_test.sh --ros-args -p execute:=true
-```
-
-右臂测试：
+右臂预览：
 
 ```bash
 ./scripts/start_arm_environment.sh right
-./scripts/run_arm_ik_test.sh --ros-args \
-  -p arm:=right -p execute:=true
+./scripts/run_arm_ik_test.sh --ros-args -p arm:=right
 ```
 
 修改偏移的示例：
 
 ```bash
 ./scripts/run_arm_ik_test.sh --ros-args \
-  -p delta_x:=0.02 -p delta_z:=0.0 -p execute:=true
+  -p delta_x:=0.02 -p delta_z:=0.0
 ```
+
+不得向任何上述命令增加 `-p execute:=true`。Pose 预览在比赛程序中应改用
+统一 API 的 `move_to(..., execute=False)`；统一 API 会对 Pose 物理请求返回
+`POSE_EXECUTION_UNSAFE`。
+
+当前保留的真机路径是关节空间控制：先用 `./start.sh --enable-arm-motion`
+打开 server 级许可，完成清场、底盘制动、控制权和急停检查后，仅对经验证的
+关节目标调用统一 `move_joints(..., execute=True)`。完整步骤见
+[`../../docs/runbooks/arm-motion-api.md`](../../docs/runbooks/arm-motion-api.md)。
 
 ## 5. 逐级诊断
 
 ```bash
 ros2 topic echo /relaxed_ik/motion_control/pose_ee_arm_left --once
-ros2 topic echo /motion_target/target_pose_arm_left
-ros2 topic echo /motion_target/target_joint_state_arm_left
 ros2 topic echo /hdas/feedback_arm_left --once
+ros2 topic info /motion_target/target_pose_arm_left -v
+ros2 topic info /motion_target/target_joint_state_arm_left -v
 ```
 
-末端目标存在但无关节目标时检查 Relaxed IK；关节目标存在但机械臂不动时检查
-Joint Tracker、`/motion_control/control_arm_left` 和 HDAS 状态。
+这些命令只读取反馈和 ROS 图端点。运行 `run_arm_ik_test.sh` preview 时，
+不应由该脚本产生新的 `/motion_target/target_pose_arm_*` 或
+`/motion_target/target_joint_state_arm_*` 消息。
