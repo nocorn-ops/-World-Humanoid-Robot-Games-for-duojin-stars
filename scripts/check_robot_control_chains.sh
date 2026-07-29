@@ -49,16 +49,34 @@ echo "No motion command will be published by this check."
 
 duojin_check_failures=0
 duojin_node_list="$(ros2 node list 2>/dev/null || true)"
+duojin_full_profile_required=true
+if [[ "${DUOJIN_CHECK_PROFILE}" == "arm-motion" ]]; then
+  duojin_full_profile_required=false
+fi
+
+report_unavailable() {
+  local label="$1"
+  local detail="$2"
+  local required="$3"
+
+  if [[ "${required}" == "true" ]]; then
+    printf '  [FAIL] %-27s %s\n' "${label}" "${detail}" >&2
+    duojin_check_failures=$((duojin_check_failures + 1))
+  else
+    printf '  [WARN] %-27s %s (not required by this profile)\n' \
+      "${label}" "${detail}" >&2
+  fi
+}
 
 check_node() {
   local label="$1"
   local node_name="$2"
+  local required="${3:-true}"
 
   if grep -Fxq "${node_name}" <<<"${duojin_node_list}"; then
     printf '  [OK]   %-27s %s\n' "${label}" "${node_name}"
   else
-    printf '  [FAIL] %-27s missing node %s\n' "${label}" "${node_name}" >&2
-    duojin_check_failures=$((duojin_check_failures + 1))
+    report_unavailable "${label}" "missing node ${node_name}" "${required}"
   fi
 }
 
@@ -71,47 +89,47 @@ subscription_count() {
 check_subscription() {
   local label="$1"
   local topic="$2"
+  local required="${3:-true}"
   local count
   count="$(subscription_count "${topic}" || true)"
 
   if [[ "${count}" =~ ^[0-9]+$ ]] && (( count > 0 )); then
     printf '  [OK]   %-27s %s (%s subscriber(s))\n' "${label}" "${topic}" "${count}"
   else
-    printf '  [FAIL] %-27s no subscriber on %s\n' "${label}" "${topic}" >&2
-    duojin_check_failures=$((duojin_check_failures + 1))
+    report_unavailable "${label}" "no subscriber on ${topic}" "${required}"
   fi
 }
 
 echo
 echo "Controller nodes:"
-check_node "chassis controller" "/r1_lite_chassis_control_node"
-check_node "torso controller" "/mobiman_torso_control_example"
-check_node "gripper controller" "/r1_gripper_controller"
-check_node "end-effector pose" "/r1_lite_eepose_pub_node"
+check_node "chassis controller" "/r1_lite_chassis_control_node" "${duojin_full_profile_required}"
+check_node "torso controller" "/mobiman_torso_control_example" "${duojin_full_profile_required}"
+check_node "gripper controller" "/r1_gripper_controller" "${duojin_full_profile_required}"
+check_node "end-effector pose" "/r1_lite_eepose_pub_node" "${duojin_full_profile_required}"
 check_node "arm joint tracker" "/r1_lite_jointTracker_demo_node"
 check_node "left Relaxed IK" "/relaxed_ik_left"
 check_node "right Relaxed IK" "/relaxed_ik_right"
 
 echo
 echo "Public command inputs:"
-check_subscription "chassis target" "/motion_target/target_speed_chassis"
-check_subscription "torso speed target" "/motion_target/target_speed_torso"
-check_subscription "torso joint target" "/motion_target/target_joint_state_torso"
+check_subscription "chassis target" "/motion_target/target_speed_chassis" "${duojin_full_profile_required}"
+check_subscription "torso speed target" "/motion_target/target_speed_torso" "${duojin_full_profile_required}"
+check_subscription "torso joint target" "/motion_target/target_joint_state_torso" "${duojin_full_profile_required}"
 check_subscription "left Cartesian target" "/motion_target/target_pose_arm_left"
 check_subscription "right Cartesian target" "/motion_target/target_pose_arm_right"
 check_subscription "left joint target" "/motion_target/target_joint_state_arm_left"
 check_subscription "right joint target" "/motion_target/target_joint_state_arm_right"
-check_subscription "left gripper target" "/motion_target/target_position_gripper_left"
-check_subscription "right gripper target" "/motion_target/target_position_gripper_right"
+check_subscription "left gripper target" "/motion_target/target_position_gripper_left" "${duojin_full_profile_required}"
+check_subscription "right gripper target" "/motion_target/target_position_gripper_right" "${duojin_full_profile_required}"
 
 echo
 echo "Controller-to-HDAS actuator links:"
-check_subscription "chassis actuator" "/motion_control/control_chassis"
-check_subscription "torso actuator" "/motion_control/control_torso"
+check_subscription "chassis actuator" "/motion_control/control_chassis" "${duojin_full_profile_required}"
+check_subscription "torso actuator" "/motion_control/control_torso" "${duojin_full_profile_required}"
 check_subscription "left arm actuator" "/motion_control/control_arm_left"
 check_subscription "right arm actuator" "/motion_control/control_arm_right"
-check_subscription "left gripper actuator" "/motion_control/control_gripper_left"
-check_subscription "right gripper actuator" "/motion_control/control_gripper_right"
+check_subscription "left gripper actuator" "/motion_control/control_gripper_left" "${duojin_full_profile_required}"
+check_subscription "right gripper actuator" "/motion_control/control_gripper_right" "${duojin_full_profile_required}"
 
 declare -a duojin_topic_labels=()
 declare -a duojin_topic_names=()
@@ -136,20 +154,19 @@ start_topic_check() {
 
 echo
 echo "Live device feedback (up to ${DUOJIN_CHECK_TIMEOUT_SECONDS}s, checked in parallel):"
-start_topic_check "chassis feedback" "/hdas/feedback_chassis"
-start_topic_check "torso feedback" "/hdas/feedback_torso"
+start_topic_check "chassis feedback" "/hdas/feedback_chassis" "${duojin_full_profile_required}"
+start_topic_check "torso feedback" "/hdas/feedback_torso" "${duojin_full_profile_required}"
 start_topic_check "left arm feedback" "/hdas/feedback_arm_left"
 start_topic_check "right arm feedback" "/hdas/feedback_arm_right"
-start_topic_check "left gripper feedback" "/hdas/feedback_gripper_left"
-start_topic_check "right gripper feedback" "/hdas/feedback_gripper_right"
-start_topic_check "chassis IMU" "/hdas/imu_chassis"
-start_topic_check "torso IMU" "/hdas/imu_torso"
-start_topic_check "battery/BMS" "/hdas/bms"
+start_topic_check "left gripper feedback" "/hdas/feedback_gripper_left" "${duojin_full_profile_required}"
+start_topic_check "right gripper feedback" "/hdas/feedback_gripper_right" "${duojin_full_profile_required}"
+start_topic_check "chassis IMU" "/hdas/imu_chassis" "${duojin_full_profile_required}"
+start_topic_check "torso IMU" "/hdas/imu_torso" "${duojin_full_profile_required}"
+start_topic_check "battery/BMS" "/hdas/bms" "${duojin_full_profile_required}"
 start_topic_check "left current EE pose" "/relaxed_ik/motion_control/pose_ee_arm_left"
 start_topic_check "right current EE pose" "/relaxed_ik/motion_control/pose_ee_arm_right"
-duojin_camera_required=true
-if [[ "${DUOJIN_CHECK_PROFILE}" == "arm-motion" ]]; then
-  duojin_camera_required=false
+duojin_camera_required="${duojin_full_profile_required}"
+if [[ "${duojin_camera_required}" == "false" ]]; then
   echo "Camera streams are reported but are not prerequisites for manual arm-motion validation."
 fi
 start_topic_check "head left color" "/hdas/camera_head/left_raw/image_raw_color/compressed" "${duojin_camera_required}"

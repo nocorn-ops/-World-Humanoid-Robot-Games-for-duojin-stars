@@ -85,8 +85,9 @@ def test_arm_execution_profile_reports_cameras_without_requiring_them() -> None:
     start_source = START_SOURCE.read_text(encoding="utf-8")
     check_source = CONTROL_CHECK_SOURCE.read_text(encoding="utf-8")
     assert '"${DUOJIN_CONTROL_CHECK}" --arm-motion' in start_source
-    assert 'DUOJIN_CAMERA_REQUIRED' not in check_source
-    assert "duojin_camera_required=false" in check_source
+    assert 'duojin_full_profile_required=false' in check_source
+    assert 'duojin_camera_required="${duojin_full_profile_required}"' in check_source
+    assert 'check_node "arm joint tracker"' in check_source
     assert "not required by this profile" in check_source
 
 

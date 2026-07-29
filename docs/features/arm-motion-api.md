@@ -202,7 +202,7 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 | 2026-07-29 | 公开位姿默认为 `base_link`、只发布新鲜 FK 样本 | 比赛程序需统一坐标与实时查询 | `start.sh` 就绪后话题和终端显示可直接使用 |
 | 2026-07-29 | 放开 `move_to`/`move_by` 实验性物理执行 | 用户已在同版厂商 IK 链验证 Z +3 cm 实际结果，并明确要求优先打通运动 | 两道 execute 门后发布 Pose；事后验证 IK 输出并由 FK 闭环判定结果 |
 | 2026-07-29 | 末端反馈改用真机 observed 话题 | 工控机启动输出证明实际话题带 `/relaxed_ik` 前缀 | API 订阅 `/relaxed_ik/motion_control/pose_ee_arm_*` |
-| 2026-07-29 | 手动机械臂验证不以相机为必需链路 | 右腕相机无数据但双臂、IK、Joint Tracker 和 FK 均正常 | `--enable-arm-motion` 下相机失败记为 WARN；默认整机启动仍视为 FAIL |
+| 2026-07-29 | 手动机械臂 profile 只阻断真实双臂依赖 | 真机中双臂、IK、Joint Tracker 和 FK 均正常，但非机械臂固定节点名检查及右腕相机失败 | `--enable-arm-motion` 下非双臂依赖记为 WARN；默认整机启动仍视为 FAIL |
 | 2026-07-29 | 使用 tracker 有效限位而非更宽 URDF 限位 | SDK 二进制接口证据 | 越界拒绝，不静默裁剪 |
 
 ## 12. 完成检查

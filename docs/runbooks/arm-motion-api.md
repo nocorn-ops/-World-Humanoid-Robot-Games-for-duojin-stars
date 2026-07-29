@@ -114,9 +114,10 @@ ros2 topic list -t | grep '/duojin/arm/.*/current_pose'
 ./start.sh --enable-arm-motion
 ```
 
-此模式的检查仍要求底盘/躯干/双臂/夹爪控制反馈、Joint Tracker、Relaxed IK
-和双臂末端位姿全部通过。相机数据与手动末端指令无数据依赖，因此相机缺帧
-会显示 `[WARN]` 但不阻止 API 启动；它仍表示整机比赛环境未就绪。
+此模式强制要求 Joint Tracker、左右 Relaxed IK、双臂 Pose/关节目标订阅者、
+双臂 HDAS 执行链、关节反馈和双臂末端位姿全部通过。底盘、躯干、夹爪、IMU、BMS
+和相机仍会检查，但失败显示 `[WARN]` 而不阻止手动机械臂 API；
+这些 WARN 仍表示整机比赛环境未就绪。
 
 运动只在两道门都打开时发生：
 
