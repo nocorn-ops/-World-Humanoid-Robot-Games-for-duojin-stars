@@ -3,6 +3,15 @@
 夺锦之星的独立 ROS 2 overlay 工作区。仓库只保存赛队源码，不包含也不修改
 Galaxea 厂商 SDK。
 
+## 开发守则
+
+所有人工开发和 AI 编程代理在修改代码前，都必须完整阅读并遵守
+[`AGENTS.md`](AGENTS.md)。新增跨模块或运动功能时，先从
+[`docs/templates/feature-spec.md`](docs/templates/feature-spec.md) 建立可验收的任务规格；
+单子系统及以上真机测试使用
+[`docs/templates/robot-test-record.md`](docs/templates/robot-test-record.md) 留存环境、步骤、
+数据和安全退出状态。
+
 ## 固定架构
 
 机器人工控机上的环境固定为：
@@ -19,6 +28,18 @@ ROS 2 节点。项目 shell 必须先加载 SDK，再加载本工作区：
 source ~/galaxea/install_430/setup.bash
 source ~/duojin_ws/install/setup.bash
 ```
+
+以上 `~` 均指 **R1 Lite 工控机用户 `r1lite` 的主目录 `/home/r1lite`**，不是本地
+开发机的 `/home/vedal`。因此工控机默认实际路径是：
+
+```text
+/home/r1lite/galaxea/install_430
+/home/r1lite/duojin_ws
+```
+
+项目脚本会根据脚本自身位置寻找 `duojin_ws`，不依赖执行命令时所在的目录；SDK
+路径则固定从工控机的 `${HOME}/galaxea/install_430` 取得。比赛源码和配置中不得写入
+本地开发机的绝对路径。
 
 本地开发机没有 ROS 2 Humble，因此本地只改源码和做静态检查。构建与真机运行均在
 工控机完成。不要提交或同步 `build/`、`install/`、`log/`。
