@@ -53,6 +53,7 @@ class ArmSdkAdapter:
         arm: str,
         tf_buffer: Buffer,
         allowed_joint_publishers: Sequence[str],
+        ik_solver_frame: str,
     ) -> None:
         if arm not in ("left", "right"):
             raise ValueError("arm must be 'left' or 'right'")
@@ -61,6 +62,7 @@ class ArmSdkAdapter:
         self.arm = arm
         self.tf_buffer = tf_buffer
         self.allowed_joint_publishers = frozenset(allowed_joint_publishers)
+        self.ik_solver_frame = str(ik_solver_frame)
 
         self.joint_feedback_topic = f"/hdas/feedback_arm_{arm}"
         self.pose_feedback_topic = (
@@ -120,8 +122,13 @@ class ArmSdkAdapter:
             self._joint_received_at_s = time.monotonic()
 
     def _on_pose_feedback(self, message: PoseStamped) -> None:
+        pose = deepcopy(message)
+        # The vendor Relaxed IK FK is numerically expressed in its configured
+        # base_link (torso_link3), but labels the message left_ee/right_ee.
+        # Correct that documented SDK boundary before any public TF transform.
+        pose.header.frame_id = self.ik_solver_frame
         with self._feedback_lock:
-            self._pose = deepcopy(message)
+            self._pose = pose
             self._pose_received_at_s = time.monotonic()
 
     def _on_joint_target(self, message: JointState) -> None:

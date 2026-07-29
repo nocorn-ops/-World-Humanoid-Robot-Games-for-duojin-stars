@@ -15,7 +15,7 @@
 | `/motion_target/target_joint_state_arm_left`、`right` | 赛队/Relaxed IK → Joint Tracker；`sensor_msgs/msg/JointState` | `position[0:6]` 是 joint1..joint6 目标 rad；`velocity[0:6]` 是逐关节正的最大速度 rad/s；不按 `name` 重排 | tracker 订阅为 BEST_EFFORT、VOLATILE、KEEP_LAST 10；厂商示例发布为 RELIABLE、TRANSIENT_LOCAL、depth 10 | documented；SDK `r1_lite_test_open_box.py` 和 Joint Tracker 二进制 |
 | `/motion_target/target_pose_arm_left`、`right` | 赛队 → Relaxed IK；`geometry_msgs/msg/PoseStamped` | xyz/quaternion 被直接取数；输入 `header.frame_id` 和 stamp 不参与 TF | Relaxed IK 订阅为 BEST_EFFORT、VOLATILE、KEEP_LAST 1 | documented；`mobiman/lib/mobiman/relaxed_ik.py` |
 | `/hdas/feedback_arm_left`、`right` | HDAS → 赛队/IK；`sensor_msgs/msg/JointState` | 闭环可依赖 `position[0:6]`，顺序 joint1..joint6；本地快照不能证明 name/header/velocity/effort 始终有效 | IK 订阅为 BEST_EFFORT、VOLATILE、KEEP_LAST 1；诊断配置期望 200 Hz | documented；`rds_ros/topic_list.toml`、diagnosis config、Relaxed IK |
-| `/relaxed_ik/motion_control/pose_ee_arm_left`、`right` | 全身 FK → 赛队；`geometry_msgs/msg/PoseStamped` | 由完整 R1 Lite URDF 和关节反馈计算左右 gripper pose | header frame、QoS、实际频率待记录 | observed；2026-07-29 工控机 `check_robot_control_chains.sh` 左右话题均收到实时消息 |
+| `/relaxed_ik/motion_control/pose_ee_arm_left`、`right` | Relaxed IK FK → 赛队；`geometry_msgs/msg/PoseStamped` | xyz/quaternion 数值在 Relaxed IK `base_links=torso_link3`；厂商却标为不存在的 `left_ee/right_ee` | RELIABLE、TRANSIENT_LOCAL、KEEP_LAST 1 | observed；2026-07-29 真机消息与 `mobiman/relaxed_ik.py`/`settings_left.yaml` 交叉验证；适配层先纠正为 `torso_link3` |
 
 赛队程序只能向 `/motion_target/*` 发布。`/motion_control/control_arm_*` 的
 `hdas_msg/msg/MotorControl` 是 Mobiman/Joint Tracker 到 HDAS 的内部链路，禁止直接发布。

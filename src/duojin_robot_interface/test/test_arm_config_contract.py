@@ -79,6 +79,7 @@ def test_pose_feedback_topic_matches_robot_observation() -> None:
     source = SDK_ADAPTER_SOURCE.read_text(encoding="utf-8")
     assert 'f"/relaxed_ik/motion_control/pose_ee_arm_{arm}"' in source
     assert 'f"/motion_control/pose_ee_arm_{arm}"' not in source
+    assert "pose.header.frame_id = self.ik_solver_frame" in source
 
 
 def test_arm_execution_profile_reports_cameras_without_requiring_them() -> None:

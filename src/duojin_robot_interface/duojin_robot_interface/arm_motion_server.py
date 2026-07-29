@@ -45,26 +45,30 @@ class ArmMotionServer(Node):
         declare_arm_parameters(self)
         config = read_arm_config(self)
         tf_buffer, self._tf_listener = initialize_tf(self)
-        adapters = self._create_adapters(tf_buffer)
+        adapters = self._create_adapters(tf_buffer, config.ik_solver_frame)
         self.motion = ArmMotionExecutor(self, adapters, config)
         self.pose_stream = ArmPoseStream(self, adapters, config)
         self._action_group = ReentrantCallbackGroup()
         self._action_servers = self._create_action_servers()
         self._log_ready(config)
 
-    def _create_adapters(self, tf_buffer) -> dict[str, ArmSdkAdapter]:
+    def _create_adapters(
+        self, tf_buffer, ik_solver_frame: str
+    ) -> dict[str, ArmSdkAdapter]:
         return {
             "left": ArmSdkAdapter(
                 self,
                 "left",
                 tf_buffer,
                 self.get_parameter("allowed_left_joint_publishers").value,
+                ik_solver_frame,
             ),
             "right": ArmSdkAdapter(
                 self,
                 "right",
                 tf_buffer,
                 self.get_parameter("allowed_right_joint_publishers").value,
+                ik_solver_frame,
             ),
         }
 
