@@ -66,10 +66,11 @@ preview server，最后进入带 `[duojin]` 提示符的环境 Shell。此时比
 ./start.sh --enable-arm-motion
 ```
 
-无参数 `./start.sh` 永远不授权真机运动。真机**关节**运动需要以上正向启动参数，且每个
+无参数 `./start.sh` 永远不授权真机运动。真机关节或末端运动需要以上正向启动参数，且每个
 Goal 仍必须再显式设置 `execute=true`；Python 函数的默认 `execute=False` 始终只 preview。
-末端 `move_to`/`move_by` 的物理执行当前被安全门禁用，因为厂商 Relaxed IK 会在项目校验前直接
-发布关节目标；完成 IK 输入/输出隔离前只能使用其 preview。
+`move_to`/`move_by` 在这两道门同时打开后会真实进入厂商 Relaxed IK，
+服务端会继续检查 IK 输出和末端反馈并等待到位。厂商会在项目事后校验前
+将 IK 关节目标发给 Joint Tracker，因此该路径属于显式启用的实验性执行。
 左右臂分别暴露
 `/duojin/arm/{left,right}/{move_to,move_by,move_joints}`
 Action，比赛 Python 程序推荐使用
@@ -174,13 +175,13 @@ cd ~/duojin_ws
 
 该旧脚本只用于 preview，禁止传入 `execute:=true`。厂商 Relaxed IK
 在收到 Pose 后会直接向 Joint Tracker 发布关节目标，这个副作用发生在
-项目能完成事前关节限幅之前；因此无论是旧脚本还是统一 API，Pose
-物理执行都在完成 IK 输入/输出隔离前禁用。比赛程序应使用统一
-`move_to(..., execute=False)` 做 Pose preview。
+项目能完成事前关节限幅之前；因此旧脚本仍保持 preview-only。
+需要真实末端运动时应使用统一 API 的
+`move_to(..., execute=True)` 或 `move_by(..., execute=True)`，不再让诊断节点成为第二个控制者。
 
-需要真机运动时，当前只使用统一 API 的 `move_joints`：以
+需要真机运动时，使用统一 API 的 `move_to`、`move_by` 或 `move_joints`：以
 `./start.sh --enable-arm-motion` 显式打开 server 级许可，完成运行手册的
-前置检查后，再对经验证的关节目标显式传入 `execute=true`。具体步骤见
+前置检查后，再对经验证的目标显式传入 `execute=true`。具体步骤见
 [`docs/runbooks/arm-motion-api.md`](docs/runbooks/arm-motion-api.md)。
 
 ## 工控机更新

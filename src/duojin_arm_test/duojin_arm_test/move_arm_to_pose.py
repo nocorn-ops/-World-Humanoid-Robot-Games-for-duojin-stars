@@ -2,8 +2,8 @@
 """Preview a small Cartesian target for the Galaxea Relaxed IK chain.
 
 The node reads the current end-effector pose produced by ``relaxed_ik``, keeps
-the current orientation, and asks the end effector to move by a small offset.
-It does not publish directly to HDAS or to the arm's MotorControl topic.
+the current orientation, and previews a small offset. It does not publish a
+motion target; physical Cartesian tests use the unified arm API instead.
 """
 
 import math
@@ -151,8 +151,8 @@ class ArmCartesianNudge(Node):
         )
 
         self.get_logger().warning(
-            "PREVIEW ONLY: no command was published. Physical Cartesian execution "
-            "remains disabled until the Relaxed IK input/output path is isolated."
+            "PREVIEW ONLY: this legacy diagnostic published no command. Use the "
+            "unified arm API for explicitly authorized Cartesian execution."
         )
         return True
 

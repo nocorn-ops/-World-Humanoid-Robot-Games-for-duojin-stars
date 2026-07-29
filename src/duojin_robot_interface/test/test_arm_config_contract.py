@@ -71,7 +71,7 @@ def test_both_default_sources_keep_physical_execution_disabled() -> None:
     assert _server_parameter_defaults()["execute"] is False
 
 
-def test_pose_execution_is_hard_blocked_before_any_target_publication() -> None:
+def test_pose_execution_keeps_preview_server_gate_before_publication() -> None:
     tree = ast.parse(POSE_ACTION_SOURCE.read_text(encoding="utf-8"))
     functions = {
         node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)
@@ -86,7 +86,8 @@ def test_pose_execution_is_hard_blocked_before_any_target_publication() -> None:
         and len(call.args) >= 2
         and isinstance(call.args[1], ast.Attribute)
     }
-    assert "POSE_EXECUTION_UNSAFE" in reasons
+    assert "EXECUTION_DISABLED" in reasons
+    assert "POSE_EXECUTION_UNSAFE" not in reasons
     assert all(
         not (isinstance(call.func, ast.Name) and call.func.id == "_publish_target")
         for call in ast.walk(gate)

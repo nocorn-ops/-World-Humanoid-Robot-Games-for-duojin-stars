@@ -13,7 +13,7 @@
 
 默认目标是把厂商 Relaxed IK 当前 FK 数值沿求解坐标系 `torso_link3` 的 Z 轴增加
 `0.03 m`，姿态不变。该厂商诊断话题的 header 不能作为公共坐标语义；需要
-`base_link` 绝对坐标和真实 TF 转换时，必须使用统一 API 的 `move_to` preview。
+`base_link` 绝对坐标和真实 TF 转换时，必须使用统一 API 的 `move_to`。
 
 ## 安全约束
 
@@ -25,9 +25,8 @@
 - 比赛程序和新测试应使用统一机械臂 API，不应依赖本测试包。
 
 厂商 Relaxed IK 在收到 Pose 时会直接向 Joint Tracker 发布关节目标，
-这个副作用发生在项目能事前校验 IK 关节输出之前。因此在完成 IK
-输入/输出隔离前，Pose 物理执行被禁止；清场、急停和小偏移也不能弥补
-这个发布前安全门缺口。
+这个副作用发生在项目能事前校验 IK 关节输出之前。因此本诊断节点保持 preview-only；
+真实 Pose 运动必须使用统一 API，由它独占所有权、做事后 IK 检查并用 FK 闭环判定结果。
 
 ## 1. 工控机构建
 
@@ -87,12 +86,10 @@ cd ~/duojin_ws
 ```
 
 不得向任何上述命令增加 `-p execute:=true`。Pose 预览在比赛程序中应改用
-统一 API 的 `move_to(..., execute=False)`；统一 API 会对 Pose 物理请求返回
-`POSE_EXECUTION_UNSAFE`。
+统一 API 的 `move_to(..., execute=False)`。
 
-当前保留的真机路径是关节空间控制：先用 `./start.sh --enable-arm-motion`
-打开 server 级许可，完成清场、底盘制动、控制权和急停检查后，仅对经验证的
-关节目标调用统一 `move_joints(..., execute=True)`。完整步骤见
+真机路径先用 `./start.sh --enable-arm-motion` 打开 server 级许可，完成现场检查后，
+通过统一 `move_to`、`move_by` 或 `move_joints` 的 `execute=True` 执行。完整步骤见
 [`../../docs/runbooks/arm-motion-api.md`](../../docs/runbooks/arm-motion-api.md)。
 
 ## 5. 逐级诊断

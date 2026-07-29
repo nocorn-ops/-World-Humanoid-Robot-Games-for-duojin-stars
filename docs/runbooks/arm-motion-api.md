@@ -9,11 +9,10 @@
 
 ## 1. 能力和边界
 
-左右臂各提供两种绝对目标：
+左右臂各提供三种目标：
 
-- `move_to`：预览指定坐标系内的绝对末端 `(x, y, z)`，单位为 m；Python
-  默认坐标系为 `base_link`，本版保持服务端目标校验时读取的最新末端朝向。物理执行
-  暂时被 `POSE_EXECUTION_UNSAFE` 安全门禁用，原因见第 1 节末尾。
+- `move_to`：绝对末端 `(x, y, z)`，单位 m；Python 默认 `base_link`，保持当前朝向。
+- `move_by`：在指定 frame 三根轴上增加 `(dx, dy, dz)`，单位 m；保持当前朝向。
 - `move_joints`：将 joint1 到 joint6 移动到六个绝对关节角，单位为 rad。
 
 左右臂可独立调用，但同一条手臂同时只执行一个目标。第二个同臂目标不会抢占，
@@ -30,9 +29,8 @@
 best-effort 停止手段，**不是硬件急停**。
 
 厂商 Relaxed IK 收到 Pose 后会先于本项目的 IK 输出校验，直接向 Joint Tracker 发布
-关节目标，旧输出还可能晚于 shutdown hold。当前 SDK 快照没有无副作用 IK service，
-项目又禁止修改/复制厂商节点。因此在完成 IK 输入/输出隔离、工控机构建和真机验证前，
-`move_to(execute=True)` 会明确失败，不得绕过；`move_joints` 不受这个特定缺陷影响。
+关节目标。统一 API 在双重 execute 许可下允许这条实验性路径，然后事后检查新 IK
+输出的关节限位/变化量，并使用 FK 末端反馈闭环等待到位。旧诊断脚本仍保持 preview-only。
 
 ## 2. 首次使用和源码变更后编译
 
@@ -123,7 +121,7 @@ ros2 topic list -t | grep '/duojin/arm/.*/current_pose'
 | `false` | `false` | 完整预览，`SUCCESS/PREVIEW_COMPLETE`、`executed=false` |
 | `false` | `true` | 拒绝执行，`RETRYABLE_FAILURE/EXECUTION_DISABLED`、`executed=false` |
 | `true` | `false` | 完整预览，`SUCCESS/PREVIEW_COMPLETE`、`executed=false` |
-| `true` | `true` | `move_joints` 通过所有安全门后执行；`move_to`/`move_by` 返回 `POSE_EXECUTION_UNSAFE` |
+| `true` | `true` | `move_to`、`move_by` 和 `move_joints` 通过对应门禁后真实执行 |
 
 不得同时保留 preview server 和 execute server，也不得用两个 execute server。正向启动参数
 只打开 server 门；Python/Goal 默认仍是 `execute=false`。
@@ -182,8 +180,7 @@ bool execute
 - `target_pose.pose.orientation`：本版不使用客户端朝向，但消息应填有效单位四元数。
 - `keep_current_orientation`：本版必须为 `true`；`false` 会被拒绝。
 - `timeout_sec`：`0.0` 表示由 server 根据配置/目标选择超时；正数表示本 goal 超时。
-- `execute`：默认 `false`，只预览。当前即使 server 和本字段都为 `true`，Pose 仍返回
-  `POSE_EXECUTION_UNSAFE`；该字段只为完成 IK 隔离后的兼容契约保留。
+- `execute`：默认 `false`，只预览。server 也以 `execute=true` 启动时，Pose 会真实发给 IK。
 
 ### 5.3 `MoveArmRelative.Goal`
 
@@ -197,7 +194,7 @@ bool execute
 `delta.vector` 是在 `delta.header.frame_id` 三根轴上的 xyz 增量，单位 m。Python
 默认补为 `base_link`；原生 ROS Goal 必须填非空 frame。服务端先取新鲜的
 当前位姿再计算绝对目标，所以它是“调用时刻”的相对移动，并且保持当前朝向。
-`keep_current_orientation` 必须为 `true`。物理执行与 `move_to` 一样暂时被硬拦截。
+`keep_current_orientation` 必须为 `true`。物理执行与 `move_to` 使用同一双重许可和闭环。
 
 ### 5.4 `MoveArmJoints.Goal`
 
@@ -273,8 +270,8 @@ with ArmClient("left", server_timeout_sec=5.0) as arm:
 ```
 
 `move_to` 在 server 校验目标时读取最新末端朝向并保持它；客户端不需要传四元数。
-当前只允许上述 preview；传 `execute=True` 会返回 `POSE_EXECUTION_UNSAFE`，不会发布
-Pose 目标。
+在 `./start.sh --enable-arm-motion` 环境内，人工审核 preview 后可对同一目标传
+`execute=True`。调用会发布 Pose，等待 IK 新输出，再用 FK 末端反馈判定到位。
 
 查询当前坐标和相对 preview：
 
@@ -293,6 +290,13 @@ with ArmClient("left") as arm:
     )
     if not preview.succeeded:
         raise RuntimeError(f"relative preview failed: {preview.reason}: {preview.message}")
+
+    # 仅在 ./start.sh --enable-arm-motion 启动且 preview 已人工审核时：
+    result = arm.move_by(
+        0.01, 0.0, 0.0, frame_id="base_link", execute=True
+    )
+    if not result.succeeded:
+        raise RuntimeError(f"relative motion failed: {result.reason}: {result.message}")
 ```
 
 `get_pose()` 等待一条本客户端收到时间不超过 `max_age_sec` 的新鲜消息；超时会抛
@@ -422,8 +426,8 @@ ros2 action send_goal \
 ```
 
 右臂只把端点中的 `left` 改为 `right`。本版 `keep_current_orientation` 不能改为
-`false`。当前不得把该 Pose goal 改成 `execute: true`：即使用执行模式启动，服务端也会
-返回 `POSE_EXECUTION_UNSAFE`，且不会发布 Pose 目标。
+`false`。上述命令先以 `execute: false` 做 preview；在执行模式启动后，对已审核的同一目标
+改为 `execute: true` 会真实发布 Pose 并等待到位。
 
 ### 7.2 末端相对位移
 
@@ -436,7 +440,7 @@ ros2 action send_goal \
 ```
 
 上例只做“沿 `base_link` x 轴 +1 cm”的 preview。原生 ROS 调用不会自动填 frame。
-当前不得把 `execute` 改为 `true`。
+在 `./start.sh --enable-arm-motion` 启动的环境中，将同一 Goal 改为 `execute: true` 会真实执行。
 
 ### 7.3 终端实时查看末端坐标
 
@@ -517,15 +521,14 @@ Joint Goal 传 `timeout_sec=0.0` 时不使用 `default_pose_timeout_sec`，而�
 | --- | --- |
 | 关节命令速度上限 | 每轴 `0.25 rad/s × speed_scale`；Python 默认 scale `0.2` |
 | 单次关节变化 | 每轴不超过 `0.35 rad` |
-| 单次末端直线距离 | preview 不超过 `0.08 m`；当前不进入 Pose 物理 L4 |
+| 单次末端直线距离 | preview 和 execute 都不超过 `0.08 m`；首次 L4 只测 `0.01 m` |
 | 关节到位 | 最大绝对误差 `≤ 0.02 rad`，连续 `≥ 0.25 s` |
 | 末端到位 | 位置误差 `≤ 0.015 m`、朝向误差 `≤ 0.05 rad`，连续 `≥ 0.25 s` |
 | 反馈新鲜度 | monotonic 接收间隔 `≤ 0.10 s` |
 
 Pose 目标经 Relaxed IK 产生 joint position，该链路不提供可由本 API 证明的笛卡尔速度
-上限。更关键的是，输出在被本项目观察到之前已经到达 Joint Tracker，所以服务端当前在
-发布 Pose 目标前就以 `POSE_EXECUTION_UNSAFE` 结束，不使用“事后检查”冒充发布前安全门。
-相关 Pose 参数仅用于 preview 与未来隔离实现，不能作为当前真机执行依据。
+上限。更关键的是，输出在被本项目观察到之前已经到达 Joint Tracker。执行模式允许这条
+实验性路径：服务端在发布后检查新 IK 输出，再持续检查 FK 末端误差。这不是发布前关节安全门。
 
 ## 9. 状态、BUSY 和常见失败
 
@@ -538,7 +541,7 @@ Pose 目标经 Relaxed IK 产生 joint position，该链路不提供可由本 AP
 | reason `PREVIEW_COMPLETE` | 目标和当前状态已校验，未执行 | 确认 `outcome=SUCCESS`、`succeeded=True` 且 `executed=False`，核对 frame、绝对值和安全路径 |
 | outcome `SUCCESS` + reason `NONE` + `executed=true` | 真实反馈在误差带内持续足够时间 | 仍检查最终误差，再进入下一步 |
 | reason `EXECUTION_DISABLED` | goal `execute=true`，但 server 仍是 `execute=false` | 不会发布运动目标；预览时保持 goal `execute=false`，真机执行则重做安全检查后重启唯一 server |
-| reason `POSE_EXECUTION_UNSAFE` | 请求了当前被禁用的末端物理执行 | 保持停止，改用 `move_to(..., execute=False)`；不得绕过统一 API 或旧诊断脚本直发 Pose |
+| reason `POSE_EXECUTION_UNSAFE` | 仅为首个 preview-only 版本保留的线上兼容码 | 当前服务端不会主动返回；如收到则说明客户连到了旧 server，重新构建并只保留一个 API |
 | reason `BUSY` | 同一手臂已有活动 goal | 不重试抢占；cancel 原 goal、等待返回后再发新目标 |
 | reason `SERVER_UNAVAILABLE` | Python 客户端在时限内未找到 server/结果 | 查 server 进程、Action 端点、source 顺序和 `ROS_DOMAIN_ID`；不能把客户端超时当作机械臂已停止 |
 | reason `INVALID_GOAL` / `OUT_OF_RANGE` | 长度、NaN/Inf、朝向模式、关节限位或单次变化不合法 | 修正上层目标；不要在客户端静默裁剪后继续运动 |
@@ -578,10 +581,8 @@ tmux capture-pane -pt duojin_arm_api
 
 ### `move_to`/`move_by` 返回 `POSE_EXECUTION_UNSAFE`
 
-这是当前版本的强制安全门，不是参数错误。厂商 Relaxed IK 的关节输出尚未隔离，项目
-无法在其进入 Joint Tracker 前完成限位检查，也无法保证旧 IK 不晚于 hold。使用
-`move_to(..., execute=False)` 或 `move_by(..., execute=False)` 做 preview；物理执行等待隔离方案完成，不得改错误码或
-绕过适配层。
+当前源码已不会主动返回该兼容码。如仍出现，检查工控机是否已切换到最新分支、重新
+执行 `./scripts/build_robot.sh`，并确认图中只有一个 API server。
 
 ### 反馈过期或 SDK 未就绪
 
@@ -680,21 +681,20 @@ ros2 topic info -v /motion_target/target_joint_state_arm_left
 
 2. 一次只测一条手臂。底盘制动、工作区清空、操作员握住急停，其他所有机械臂
    目标发布者退出。
-3. 当前 L4 只测试 `move_joints`。使用实测当前值生成一个每轴变化 `≤ 0.15 rad` 的
-   关节目标，`speed_scale=0.2`；先保持 goal `execute=false` 并人工审核。
+3. 先测 `move_joints`：使用实测当前值生成每轴变化 `≤ 0.15 rad` 的目标，
+   `speed_scale=0.2`；先保持 goal `execute=false` 并人工审核。
 4. 用 `./stop.sh` 完整停止 preview 环境，重新检查现场，再用唯一的
-   `./start.sh --enable-arm-motion` 启动；仅将已审核关节 goal 改为 `execute=true`，单次执行。
+   `./start.sh --enable-arm-motion` 启动；将已审核 goal 改为 `execute=true`，单次执行。
 5. 记录目标、实际反馈、最大误差、到位时间、是否超调、最终 result 和安全退出状态；
    同类小动作每臂至少 3 次。
 6. 在仍可随时急停的小动作中分别验证一次 cancel 和超时，确认 result 正确且 hold
    后无继续原目标的运动。
-7. 验证同臂第二个 goal 返回 `BUSY`，左右臂的互斥状态互不锁死。首次不要同时运动
+7. 关节路径通过后，读取当前 `current_pose`，先对当前绝对坐标做 `move_to` preview，
+   再对 `base_link` Z `+0.01 m` 做 `move_by` preview。审核后依次将同一 Goal 改为 `execute=true`，
+   记录 Action 的 `executed`、最终 xyz、位置/朝向误差和到位时间。
+8. 验证同臂第二个 goal 返回 `BUSY`，左右臂的互斥状态互不锁死。首次不要同时运动
    双臂；可用一臂的活动/取消状态加另一臂 preview 来验证独立性。
-8. 任何参数调整一次只改一个主要变量，在记录中保留调整前后数据。
-
-末端物理运动不进入本轮 L4。先设计并实现 Relaxed IK 输入/输出隔离，使 IK 结果在发布
-到真实 Joint Tracker 之前经过限位、单步变化、控制权和 shutdown 顺序校验，再从 L2
-重新验证；没有这条证据链时不得把 `POSE_EXECUTION_UNSAFE` 改成可执行。
+9. 任何参数调整一次只改一个主要变量，在记录中保留调整前后数据。
 
 L4 完成后仍不代表有碰撞规划。把该 API 接入感知或比赛状态机前，还需要上层分别验证
 目标时效、可达性、底盘制动、物体/货架碰撞余量和失败恢复。

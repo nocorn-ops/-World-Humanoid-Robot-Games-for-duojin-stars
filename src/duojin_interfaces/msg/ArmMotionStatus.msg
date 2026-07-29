@@ -21,6 +21,7 @@ uint16 CONTROL_CONFLICT=11
 uint16 STOP_FAILED=12
 uint16 INTERNAL_ERROR=13
 uint16 EXECUTION_STATE_UNKNOWN=14
+# Retained for wire compatibility with the first preview-only release.
 uint16 POSE_EXECUTION_UNSAFE=15
 
 uint8 outcome

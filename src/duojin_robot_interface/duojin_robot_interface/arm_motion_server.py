@@ -122,6 +122,10 @@ class ArmMotionServer(Node):
                 "Real arm goals can now reach the SDK. Keep the emergency stop ready; "
                 "this API does not perform collision planning."
             )
+            self.get_logger().warning(
+                "Cartesian execution uses vendor Relaxed IK; its joint output is "
+                "validated only after the vendor has published it to Joint Tracker."
+            )
 
     def _accept_goal(self, goal_request) -> GoalResponse:
         # Execution callbacks perform atomic BUSY admission and return a

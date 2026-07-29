@@ -15,14 +15,15 @@
 > 完整 SDK 已启动后，比赛程序能够分别通过 ROS 2 Action 或 Python `ArmClient` 预览
 > 左/右臂末端绝对或相对三维位置，并读取持续发布的当前末端位姿；在操作员明确允许执行时请求六关节绝对角度；关节服务端
 > 在反馈连续进入配置误差带后才返回动作成功，并在忙、取消、超时、反馈过期、TF
-> 不可用、越界或控制冲突时返回结构化失败。末端物理执行在 IK 隔离前明确拒绝。
+> 不可用、越界或控制冲突时返回结构化失败。在 server/Goal 双重许可下，绝对和相对
+> 末端目标会真实进入厂商 IK，并由 FK 反馈闭环判定到位。
 
 ## 2. 范围
 
 ### 本次包含
 
-- 左右臂各自独立的绝对/相对末端 preview Action 和关节位置 Action；保留末端执行字段但由
-  强制安全门拒绝物理执行。
+- 左右臂各自独立的绝对/相对末端 Action 和关节位置 Action；全部支持 preview 与
+  显式许可的真机执行。
 - `move_to(x, y, z)`、`move_by(dx, dy, dz)` 和 `get_pose()` Python 封装，保持目标校验时读取的最新末端朝向。
 - 左右臂各一个默认 `base_link` 的新鲜末端 `PoseStamped` 公开话题和终端显示程序。
 - 对外接受带 `frame_id` 的绝对坐标，默认使用 `base_link`，适配层转换到 IK 的实际
@@ -50,7 +51,7 @@
 | 输入 | 关节目标 | `MoveArmJoints.Goal` | rad；joint1..joint6；单次 | ROS/Python 客户端 | 恰好 6 项、有限、在控制器有效限位与 margin 内、单次变化不过限 |
 | 输入 | 关节反馈 | `sensor_msgs/msg/JointState` | rad；诊断配置期望约 200 Hz，实际频率待 L3 观测 | `/hdas/feedback_arm_{left,right}` | 至少 6 个有限 position，以 monotonic 接收时刻判断新鲜度 |
 | 输入 | 末端反馈 | `geometry_msgs/msg/PoseStamped` | m/rad；消息声明的 frame | `/motion_control/pose_ee_arm_{left,right}` | frame 非空、位姿有限、四元数有效、反馈新鲜 |
-| 输出 | 末端 SDK 目标（预留） | `geometry_msgs/msg/PoseStamped` | 数值应在 `torso_link3`；单次 | `/motion_target/target_pose_arm_{left,right}` | 当前版本不发布；完成 IK I/O 隔离并重新验证后才可启用 |
+| 输出 | 末端 SDK 目标 | `geometry_msgs/msg/PoseStamped` | 数值在 `torso_link3`；单次 | `/motion_target/target_pose_arm_{left,right}` | 仅 server/Goal 双重 execute 许可后发布 |
 | 输出 | 关节 SDK 目标 | `sensor_msgs/msg/JointState` | rad 与 rad/s；单次 | `/motion_target/target_joint_state_arm_{left,right}` | position/velocity 均严格 6 项；仅 execute 或 hold 时发布 |
 | 输出 | 动作结果/反馈 | 三个自定义 Action | 结构化状态、误差、当前/最终值 | ROS/Python 客户端 | 只有真实反馈到位才是已执行 SUCCESS |
 | 输出 | 当前末端位姿 | `PoseStamped` | 默认 `base_link`；新 FK 样本驱动 | ROS/Python/终端 | 不重发旧样本，读取超时明确失败 |
@@ -62,8 +63,8 @@
   `robot_state_publisher` 已由厂商启动，项目不重复启动。
 - `r1lite_teleop`、Gello、VR 或其他目标发布者不再争用控制；API 服务只运行一份。
 - 底盘静止并制动，机械臂工作区清空，操作员握住急停；软件检查不替代这些前提。
-- 真机关节执行必须用 `./start.sh --enable-arm-motion` 显式授权；preview 不发布运动目标。
-- 末端物理执行在 IK 输入/输出隔离完成前强制返回 `POSE_EXECUTION_UNSAFE`。
+- 任何真机执行必须用 `./start.sh --enable-arm-motion` 显式授权；preview 不发布运动目标。
+- 末端执行依赖厂商 Relaxed IK 的直通关节输出；项目对 IK 结果的关节检查发生在厂商发布之后。
 
 ## 4. 验收指标
 
@@ -72,7 +73,7 @@
 | Python/ROS 契约 | 六个 Action、两个 pose 话题均可用 | `ros2 action list -t`、`ros2 topic list -t` 与 Python 示例 | L3 一次 | 任一端点或类型缺失 |
 | preview 安全 | 0 条运动目标由 API 发布 | 无参数 `start.sh` 后调用并检查结果/话题 | 每个 Action 1 次 | 发布了目标或返回 executed=true |
 | 关节闭环 | 最大绝对误差 ≤ 0.02 rad，持续 ≥ 0.25 s | 反馈与 Action result | 每臂 3 次小动作 | 超时或超误差 |
-| 末端执行安全门 | `execute=true` 返回 `POSE_EXECUTION_UNSAFE` 且 0 条 Pose 目标 | Action result 与目标话题 | L1/L3 每臂 1 次 | 目标被发布或声称已执行 |
+| 末端执行闭环 | 误差 ≤ 0.015 m 且朝向误差 ≤ 0.05 rad，持续 ≥ 0.25 s | Action result 与 `current_pose` | L4 每臂绝对/相对各 3 次 | 超时、误差超限或未返回 executed=true |
 | 反馈安全门 | > 0.10 s 未收到反馈即拒绝/中止 | 停反馈或注入纯逻辑时钟 | L1、L3 各 1 次 | 继续发新目标或成功 |
 | 并发互斥 | 同一臂第二目标返回 BUSY；左右臂互不锁死 | 并发 Action 调用 | L1/L3 各 1 次 | 同臂双目标同时执行 |
 | 关节取消/超时 | 返回 CANCELLED/TIMEOUT 且发 hold | 低速关节小动作中取消/缩短超时 | 每臂各 1 次 L4 | 仍继续原目标或无明确 STOP_FAILED |
@@ -86,8 +87,8 @@
 | CAP-ARM-01 | 校验关节目标 | 6 角度、speed scale、当前角度 | 有效速度与目标 | 新鲜关节反馈 | 全部有限且限位/单步检查通过 | INVALID_GOAL/OUT_OF_RANGE | L0/L1 | implementing |
 | CAP-ARM-02 | 规范化末端目标 | 带 frame 的 xyz、当前末端 pose | solver-frame Pose | 新鲜 pose 与 TF | 保持当前朝向且完成两次 TF | TF_UNAVAILABLE/OUT_OF_RANGE | L1/L3 | implementing |
 | CAP-ARM-03 | 仲裁单臂控制权 | arm 与 goal | 独占 token | server 唯一 | 同臂串行、异臂独立 | BUSY | L1/L3 | implementing |
-| CAP-ARM-04 | 发布关节 SDK 目标 | 已校验 JointState | `/motion_target/target_joint_state_arm_*` 单次消息 | execute、订阅者、无冲突 | 发布一次且数组/QoS 符合证据；Pose 发布保持禁用 | SDK_NOT_READY/CONTROL_CONFLICT/OUT_OF_RANGE/POSE_EXECUTION_UNSAFE | L3/L4 | implementing |
-| CAP-ARM-05 | 判断关节动作到位 | 目标与实时反馈 | 结果/Action feedback | 反馈新鲜 | 连续 0.25 s 在误差带；末端闭环待隔离后验证 | FEEDBACK_STALE/TIMEOUT | L1/L4 | implementing |
+| CAP-ARM-04 | 发布 SDK 运动目标 | 已校验 Pose/JointState | `/motion_target/target_pose_arm_*` 或 joint target | execute、订阅者、无冲突 | 只有目标所有者可发布 | SDK_NOT_READY/CONTROL_CONFLICT/OUT_OF_RANGE | L3/L4 | implementing |
+| CAP-ARM-05 | 判断关节/末端动作到位 | 目标与实时反馈 | 结果/Action feedback | 反馈新鲜 | 连续 0.25 s 在对应误差带 | FEEDBACK_STALE/TIMEOUT | L1/L4 | implementing |
 | CAP-ARM-06 | 取消并 hold | 取消/超时/退出与当前关节 | hold 目标和结果 | 新鲜关节反馈、订阅者存在 | hold 已发送且返回明确状态 | STOP_FAILED | L3/L4 | implementing |
 | CAP-ARM-07 | 封装 Python 调用 | arm、xyz 或 6 角度 | `ArmResult` | Action server 在线 | 阻塞返回且可显式 cancel | SERVER_UNAVAILABLE/结构化状态 | L1/L3 | implementing |
 | CAP-ARM-08 | 发布/查询末端位姿 | 新鲜 FK pose 和 TF | `current_pose`/`ArmPoseReading` | 反馈与 TF 有效 | 只发布新鲜已转换样本 | FEEDBACK_STALE/TF 错误/超时 | L1/L3 | implementing |
@@ -114,7 +115,7 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 
 - `/motion_control/pose_ee_arm_*` 的实际 `header.frame_id`、频率和 QoS 与全身 URDF一致。
 - `JointState.velocity` 反馈是否稳定存在；本版到位只强依赖已确认的 position。
-- 完成隔离后，单次 pose 目标能否在所有初始姿态可靠产生可先校验的 IK joint target。
+- 单次 pose 目标能否在当前工作姿态可靠产生 IK joint target 并由 FK 闭环到位。
 - hold-current 对当前 Joint Tracker 版本的减速/停止效果；未经 L4 不称为硬停止。
 - 机器人 `/opt/galaxea/body/hardware.json` 的 joint bias 与断电重启重复性。
 
@@ -125,7 +126,7 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 | IDLE | 获得单臂 token | 无 | BUSY | 无 | VALIDATING 或返回 BUSY |
 | VALIDATING | 目标、反馈、TF、订阅者、发布者均通过 | readiness timeout | SDK_NOT_READY、FEEDBACK_STALE、TF_UNAVAILABLE、CONTROL_CONFLICT | INVALID_GOAL、OUT_OF_RANGE | PREVIEW/COMMANDING/返回失败 |
 | PREVIEW | 完成全部只读校验 | 无 | 无 | 无 | 返回 PREVIEW_COMPLETE，executed=false |
-| COMMANDING | 当前仅关节 SDK 目标单次发布；Pose 在此前失败 | goal timeout | 无 | publish/internal error | HOLDING 或 WAITING |
+| COMMANDING | 关节或 Pose SDK 目标单次发布 | goal timeout | IK_NO_RESPONSE | publish/internal error | HOLDING 或 WAITING |
 | WAITING | 连续稳定样本达标 | goal timeout | FEEDBACK_STALE | 无 | SUCCESS 或 HOLDING |
 | HOLDING | 最新关节位置 hold 已发布 | hold timeout | 无 | STOP_FAILED | CANCELLED/TIMEOUT 或致命失败 |
 
@@ -140,9 +141,8 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 - 涉及的执行器：左/右六自由度机械臂。
 - preview 输出：完整校验、目标/误差日志和 PREVIEW_COMPLETE；不发布 `/motion_target/*`。
 - 执行许可方式：server `execute:=false` 默认；只有 `start.sh --enable-arm-motion` 且每个
-  goal 再显式设置 `execute=true`，关节目标才可能执行。goal `execute=false` 时 preview；
-  goal `execute=true` 但 server 仍为 false 时返回 `EXECUTION_DISABLED`。Pose 即使两道门
-  都打开也返回 `POSE_EXECUTION_UNSAFE`，直到 IK 输入/输出隔离完成。
+  goal 再显式设置 `execute=true`，关节或末端目标才可能执行。goal `execute=false` 时 preview；
+  goal `execute=true` 但 server 仍为 false 时返回 `EXECUTION_DISABLED`。
 - 位置/速度/频率/力限制：按 tracker 有效限位再留 0.03 rad；单关节变化默认 ≤ 0.35
   rad；末端单目标位移默认 ≤ 0.08 m；关节速度初值 0.25 rad/s×speed scale；单次发布，
   不修改力矩。所有值待 L4 标定。
@@ -183,10 +183,10 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 | 层级 | 用例 | 命令/步骤 | 期望结果 | 实际证据 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | L0 | Python/Shell/XML/接口静态检查 | compileall、bash -n、XML parse、路径/规模、diff check | 全部通过 | 2026-07-29：全部通过；所有生产模块 ≤400 行、函数 ≤60 行 | passed |
-| L1 | 校验、相对几何、误差、稳定窗口、互斥、生命周期、客户端映射/并发 | `python3 -m pytest -q src/duojin_robot_interface/test` | 正常与失败分支通过 | 2026-07-29：`96 passed in 0.13s` | passed |
+| L1 | 校验、相对几何、误差、稳定窗口、互斥、生命周期、客户端映射/并发 | `python3 -m pytest -q src/duojin_robot_interface/test` | 正常与失败分支通过 | 2026-07-29：`96 passed in 0.08s` | passed |
 | L2 | 工控机 ROS 构建 | `./scripts/build_robot.sh` | rosidl 与两个包构建成功 | 需工控机 | todo |
 | L3 | 真实图 preview | 无参数 `start.sh` 自动启动 preview，调用六个 Action 并读两个 pose 话题 | 无运动消息，frame/反馈/QoS 记录完成 | 需工控机 | todo |
-| L4 | 单臂低速关节小动作/取消 | 测试记录模板；每轴变化 ≤0.15 rad | 到位、超时、取消与 hold 数据符合指标；不测 Pose 物理执行 | 需机器人 | todo |
+| L4 | 单臂低风险关节/末端小动作 | 测试记录模板；关节 ≤0.15 rad，末端先测 0.01 m | 关节到位，绝对/相对 Pose 的 FK 误差与 hold 数据符合指标 | 需机器人 | todo |
 | L5 | manipulation 调用 | 上层用 Python/Action 组合能力 | 错误传播与恢复正确 | 不属本次真机交付 | todo |
 | L6 | 比赛回归 | 多轮比赛流程 | 无控制权/接口回归 | 不属本次真机交付 | todo |
 
@@ -200,7 +200,7 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 | 2026-07-29 | `start.sh` 自动启动 preview API | 用户期望一次启动后程序可直接调用；preview 不发布目标 | `--enable-arm-motion` 与 Goal execute 构成关节执行双门 |
 | 2026-07-29 | 相对位移默认沿 `base_link` 轴，可显式指定其他 frame | 用户确认可支持并接受建议 | 服务端在目标校验时从新鲜当前位姿计算绝对目标 |
 | 2026-07-29 | 公开位姿默认为 `base_link`、只发布新鲜 FK 样本 | 比赛程序需统一坐标与实时查询 | `start.sh` 就绪后话题和终端显示可直接使用 |
-| 2026-07-29 | 暂停 `move_to`/`move_by` 物理执行 | Relaxed IK 在项目事前校验前直接发布 joint target，且可能晚于 hold | preview 可用；物理请求返回 POSE_EXECUTION_UNSAFE，等待 IK I/O 隔离 |
+| 2026-07-29 | 放开 `move_to`/`move_by` 实验性物理执行 | 用户已在同版厂商 IK 链验证 Z +3 cm 实际结果，并明确要求优先打通运动 | 两道 execute 门后发布 Pose；事后验证 IK 输出并由 FK 闭环判定结果 |
 | 2026-07-29 | 使用 tracker 有效限位而非更宽 URDF 限位 | SDK 二进制接口证据 | 越界拒绝，不静默裁剪 |
 
 ## 12. 完成检查
