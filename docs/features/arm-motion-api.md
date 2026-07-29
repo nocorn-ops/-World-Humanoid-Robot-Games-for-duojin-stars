@@ -203,7 +203,7 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 | 2026-07-29 | 放开 `move_to`/`move_by` 实验性物理执行 | 用户已在同版厂商 IK 链验证 Z +3 cm 实际结果，并明确要求优先打通运动 | 两道 execute 门后发布 Pose；事后验证 IK 输出并由 FK 闭环判定结果 |
 | 2026-07-29 | 末端反馈改用真机 observed 话题 | 工控机启动输出证明实际话题带 `/relaxed_ik` 前缀 | API 订阅 `/relaxed_ik/motion_control/pose_ee_arm_*` |
 | 2026-07-29 | 在 SDK 边界纠正 Relaxed IK FK frame | 真机消息标记 `left_ee`，但 SDK 源码证明 FK 数值基于 `settings_*.yaml` 的 `torso_link3` | 接收后先设为 `ik_solver_frame`，再通过 TF 转成公开 `base_link` |
-| 2026-07-29 | 自主启动时停止 EHI gateway | 真机 Goal 被 `/ehi_gateway_node` 关节目标发布者正确拦截为 `CONTROL_CONFLICT`；进程会在重启间隙短暂消失 | 精确终止当前用户的 `uvicorn ehi_gateway.main:app`，并要求连续 3 秒静默；不加入允许白名单，停止失败则不启动 |
+| 2026-07-29 | 自主启动时停止 EHI gateway | 真机 Goal 被 `/ehi_gateway_node` 关节目标发布者正确拦截为 `CONTROL_CONFLICT`；进程会在重启间隙短暂消失 | 精确终止当前用户的 `uvicorn ehi_gateway.main:app`，出现过则完整监视并压制 15 秒；不加入允许白名单，停止失败则不启动 |
 | 2026-07-29 | 手动机械臂 profile 以端点和实时数据链为启动硬门 | 真机中左 IK 节点名查询失败，但左 Pose 目标有订阅者且 FK 持续有消息 | 固定节点名只记 WARN；Goal 时 API 再核对预期 SDK 订阅者；默认整机 profile 仍视为 FAIL |
 | 2026-07-29 | 使用 tracker 有效限位而非更宽 URDF 限位 | SDK 二进制接口证据 | 越界拒绝，不静默裁剪 |
 

@@ -99,7 +99,7 @@ def test_startup_stops_ehi_gateway_instead_of_allowing_its_publisher() -> None:
     assert "stop_ehi_gateway" in start_source
     assert "ehi_gateway\\.main:app" in start_source
     assert "quiet_checks >= 15" in start_source
-    assert "3 continuous seconds" in start_source
+    assert "15-second observation" in start_source
     assert "/ehi_gateway_node" not in config_source
 
 

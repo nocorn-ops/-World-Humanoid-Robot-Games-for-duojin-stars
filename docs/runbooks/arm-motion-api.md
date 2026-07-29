@@ -89,7 +89,7 @@ cd ~/duojin_ws
 ```
 
 `start.sh` 会启动完整厂商 SDK、关闭 `r1lite_teleop` 和 EHI gateway 机械臂目标发布者、
-确认 EHI 连续 3 秒不再重启，再检查整机链路，成功后进入
+如 EHI 曾出现则完整监视并压制重启 15 秒，再检查整机链路，成功后进入
 `[duojin]` Shell，并自动启动 preview API。任何 `[FAIL]` 都必须先排除；不得跳过检查
 直接运动，也不要手工补启单个厂商控制节点。
 

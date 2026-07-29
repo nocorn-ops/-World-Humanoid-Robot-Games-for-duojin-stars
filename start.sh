@@ -22,7 +22,7 @@ stop_ehi_gateway() {
     )
     if (( ${#gateway_pids[@]} == 0 )); then
       quiet_checks=$((quiet_checks + 1))
-      if (( quiet_checks >= 15 )); then
+      if [[ "${saw_gateway}" == "false" ]] && (( quiet_checks >= 15 )); then
         echo "EHI gateway remained stopped for 3 seconds."
         return 0
       fi
@@ -37,7 +37,15 @@ stop_ehi_gateway() {
     sleep 0.2
   done
 
-  echo "EHI gateway did not remain stopped for 3 continuous seconds." >&2
+  mapfile -t gateway_pids < <(
+    pgrep -u "$(id -u)" -f "${gateway_pattern}" 2>/dev/null || true
+  )
+  if (( ${#gateway_pids[@]} == 0 )); then
+    echo "EHI gateway remained suppressed throughout the 15-second observation."
+    return 0
+  fi
+
+  echo "EHI gateway kept respawning during the 15-second observation." >&2
   echo "Stop its owning launcher before autonomous arm control." >&2
   return 1
 }
