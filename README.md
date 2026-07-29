@@ -56,7 +56,8 @@ cd ~/duojin_ws
 ```
 
 `start.sh` 自动配置 CAN、启动完整 `install_430` SDK、等待 ROS 话题就绪、关闭
-`r1lite_teleop`，并检查底盘、躯干、双臂、双夹爪、IMU 与三组相机的完整控制/反馈链。
+`r1lite_teleop` 和会发布机械臂目标的 EHI gateway，并检查底盘、躯干、双臂、
+双夹爪、IMU 与三组相机的完整控制/反馈链。
 检查通过后，它还会在 `duojin_arm_api` tmux 会话中自动启动唯一的机械臂 API
 preview server，最后进入带 `[duojin]` 提示符的环境 Shell。此时比赛程序可以直接调用
 六个 Action、两个实时末端坐标话题或 Python API；默认请求只做预览，不发布运动目标。

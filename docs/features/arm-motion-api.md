@@ -183,7 +183,7 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 | 层级 | 用例 | 命令/步骤 | 期望结果 | 实际证据 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | L0 | Python/Shell/XML/接口静态检查 | compileall、bash -n、XML parse、路径/规模、diff check | 全部通过 | 2026-07-29：全部通过；所有生产模块 ≤400 行、函数 ≤60 行 | passed |
-| L1 | 校验、相对几何、误差、稳定窗口、互斥、生命周期、客户端映射/并发 | `python3 -m pytest -q src/duojin_robot_interface/test` | 正常与失败分支通过 | 2026-07-29：`98 passed in 0.09s` | passed |
+| L1 | 校验、相对几何、误差、稳定窗口、互斥、生命周期、客户端映射/并发 | `python3 -m pytest -q src/duojin_robot_interface/test` | 正常与失败分支通过 | 2026-07-29：`99 passed in 0.09s` | passed |
 | L2 | 工控机 ROS 构建 | `./scripts/build_robot.sh` | rosidl 与两个包构建成功 | 需工控机 | todo |
 | L3 | 真实图 preview | 无参数 `start.sh` 自动启动 preview，调用六个 Action 并读两个 pose 话题 | 无运动消息，frame/反馈/QoS 记录完成 | 需工控机 | todo |
 | L4 | 单臂低风险关节/末端小动作 | 测试记录模板；关节 ≤0.15 rad，末端先测 0.01 m | 关节到位，绝对/相对 Pose 的 FK 误差与 hold 数据符合指标 | 需机器人 | todo |
@@ -203,6 +203,7 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 | 2026-07-29 | 放开 `move_to`/`move_by` 实验性物理执行 | 用户已在同版厂商 IK 链验证 Z +3 cm 实际结果，并明确要求优先打通运动 | 两道 execute 门后发布 Pose；事后验证 IK 输出并由 FK 闭环判定结果 |
 | 2026-07-29 | 末端反馈改用真机 observed 话题 | 工控机启动输出证明实际话题带 `/relaxed_ik` 前缀 | API 订阅 `/relaxed_ik/motion_control/pose_ee_arm_*` |
 | 2026-07-29 | 在 SDK 边界纠正 Relaxed IK FK frame | 真机消息标记 `left_ee`，但 SDK 源码证明 FK 数值基于 `settings_*.yaml` 的 `torso_link3` | 接收后先设为 `ik_solver_frame`，再通过 TF 转成公开 `base_link` |
+| 2026-07-29 | 自主启动时停止 EHI gateway | 真机 Goal 被 `/ehi_gateway_node` 关节目标发布者正确拦截为 `CONTROL_CONFLICT` | 精确终止当前用户的 `uvicorn ehi_gateway.main:app`；不加入允许白名单，停止失败则不启动 |
 | 2026-07-29 | 手动机械臂 profile 以端点和实时数据链为启动硬门 | 真机中左 IK 节点名查询失败，但左 Pose 目标有订阅者且 FK 持续有消息 | 固定节点名只记 WARN；Goal 时 API 再核对预期 SDK 订阅者；默认整机 profile 仍视为 FAIL |
 | 2026-07-29 | 使用 tracker 有效限位而非更宽 URDF 限位 | SDK 二进制接口证据 | 越界拒绝，不静默裁剪 |
 

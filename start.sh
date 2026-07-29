@@ -9,6 +9,36 @@ readonly DUOJIN_SDK_SETUP="${HOME}/galaxea/install_430/setup.bash"
 readonly DUOJIN_OVERLAY="${DUOJIN_WORKSPACE}/install/setup.bash"
 readonly DUOJIN_ARM_API_SESSION="duojin_arm_api"
 
+stop_ehi_gateway() {
+  local gateway_pattern
+  local -a gateway_pids=()
+  gateway_pattern='(^|[[:space:]/])uvicorn[[:space:]]+ehi_gateway\.main:app([[:space:]]|$)'
+
+  for _attempt in {1..25}; do
+    mapfile -t gateway_pids < <(
+      pgrep -u "$(id -u)" -f "${gateway_pattern}" 2>/dev/null || true
+    )
+    if (( ${#gateway_pids[@]} == 0 )); then
+      echo "EHI gateway is not running."
+      return 0
+    fi
+    if (( _attempt == 1 )); then
+      echo "Stopping EHI gateway arm-target publisher: ${gateway_pids[*]}"
+    fi
+    kill -TERM "${gateway_pids[@]}" 2>/dev/null || true
+    sleep 0.2
+  done
+
+  mapfile -t gateway_pids < <(
+    pgrep -u "$(id -u)" -f "${gateway_pattern}" 2>/dev/null || true
+  )
+  if (( ${#gateway_pids[@]} > 0 )); then
+    echo "EHI gateway kept running or respawned: ${gateway_pids[*]}" >&2
+    echo "Stop its owning service before autonomous arm control." >&2
+    return 1
+  fi
+}
+
 if (( $# > 1 )) || { (( $# == 1 )) && [[ "$1" != "--enable-arm-motion" ]]; }; then
   echo "Usage: $0 [--enable-arm-motion]" >&2
   exit 2
@@ -55,6 +85,10 @@ if tmux has-session -t r1lite_teleop 2>/dev/null; then
 else
   echo "r1lite_teleop is not running."
 fi
+
+echo
+echo "Removing the EHI gateway from autonomous arm control ownership..."
+stop_ehi_gateway
 
 echo
 if [[ "${DUOJIN_ARM_API_MODE}" == "execute" ]]; then

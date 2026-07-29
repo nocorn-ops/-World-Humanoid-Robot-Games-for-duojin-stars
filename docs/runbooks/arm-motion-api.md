@@ -88,7 +88,8 @@ cd ~/duojin_ws
 ./start.sh
 ```
 
-`start.sh` 会启动完整厂商 SDK、关闭 `r1lite_teleop`、检查整机链路，成功后进入
+`start.sh` 会启动完整厂商 SDK、关闭 `r1lite_teleop` 和 EHI gateway 机械臂目标发布者、
+检查整机链路，成功后进入
 `[duojin]` Shell，并自动启动 preview API。任何 `[FAIL]` 都必须先排除；不得跳过检查
 直接运动，也不要手工补启单个厂商控制节点。
 
@@ -553,7 +554,7 @@ Pose 目标经 Relaxed IK 产生 joint position，该链路不提供可由本 AP
 | reason `INVALID_GOAL` / `OUT_OF_RANGE` | 长度、NaN/Inf、朝向模式、关节限位或单次变化不合法 | 修正上层目标；不要在客户端静默裁剪后继续运动 |
 | reason `SDK_NOT_READY` / `FEEDBACK_STALE` | SDK 订阅端、反馈或时效不满足 | 停止执行，检查 CAN、HDAS、Joint Tracker 和实时反馈 |
 | reason `TF_UNAVAILABLE` | 目标 frame 不能转到公共/求解 frame | 检查 `frame_id`、robot_state_publisher 和 `base_link` ↔ `torso_link3` TF；不要只改 frame 名 |
-| reason `CONTROL_CONFLICT` | 遥操或其他发布者在争用目标 | 识别并停止冲突所有者；不要为绕过检查修改数量限制 |
+| reason `CONTROL_CONFLICT` | 遥操或其他发布者在争用目标 | 识别并停止冲突所有者；`start.sh` 会停止已观测的 EHI gateway；不要为绕过检查修改白名单 |
 | outcome `TIMEOUT` / `CANCELLED` | 未在时限内到位，或客户端取消 | server 会尝试一次最新关节位置 hold；确认实机已停止后才处理下一步 |
 | reason `IK_NO_RESPONSE` | Pose 目标后没有可用的 IK/运动反馈 | 保持停止，查 Relaxed IK 日志、目标 frame 和可达性 |
 | reason `STOP_FAILED` | 软件 hold 无法发送或无法确认 | 立即使用硬件急停，不再发目标 |

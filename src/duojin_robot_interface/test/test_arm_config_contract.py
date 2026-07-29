@@ -93,6 +93,14 @@ def test_arm_execution_profile_reports_cameras_without_requiring_them() -> None:
     assert "not required by this profile" in check_source
 
 
+def test_startup_stops_ehi_gateway_instead_of_allowing_its_publisher() -> None:
+    start_source = START_SOURCE.read_text(encoding="utf-8")
+    config_source = CONFIG_FILE.read_text(encoding="utf-8")
+    assert "stop_ehi_gateway" in start_source
+    assert "ehi_gateway\\.main:app" in start_source
+    assert "/ehi_gateway_node" not in config_source
+
+
 def test_pose_execution_keeps_preview_server_gate_before_publication() -> None:
     tree = ast.parse(POSE_ACTION_SOURCE.read_text(encoding="utf-8"))
     functions = {
