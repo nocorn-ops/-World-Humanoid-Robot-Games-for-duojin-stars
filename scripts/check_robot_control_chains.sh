@@ -106,9 +106,9 @@ check_node "chassis controller" "/r1_lite_chassis_control_node" "${duojin_full_p
 check_node "torso controller" "/mobiman_torso_control_example" "${duojin_full_profile_required}"
 check_node "gripper controller" "/r1_gripper_controller" "${duojin_full_profile_required}"
 check_node "end-effector pose" "/r1_lite_eepose_pub_node" "${duojin_full_profile_required}"
-check_node "arm joint tracker" "/r1_lite_jointTracker_demo_node"
-check_node "left Relaxed IK" "/relaxed_ik_left"
-check_node "right Relaxed IK" "/relaxed_ik_right"
+check_node "arm joint tracker" "/r1_lite_jointTracker_demo_node" "${duojin_full_profile_required}"
+check_node "left Relaxed IK" "/relaxed_ik_left" "${duojin_full_profile_required}"
+check_node "right Relaxed IK" "/relaxed_ik_right" "${duojin_full_profile_required}"
 
 echo
 echo "Public command inputs:"

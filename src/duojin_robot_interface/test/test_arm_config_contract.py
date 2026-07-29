@@ -87,7 +87,8 @@ def test_arm_execution_profile_reports_cameras_without_requiring_them() -> None:
     assert '"${DUOJIN_CONTROL_CHECK}" --arm-motion' in start_source
     assert 'duojin_full_profile_required=false' in check_source
     assert 'duojin_camera_required="${duojin_full_profile_required}"' in check_source
-    assert 'check_node "arm joint tracker"' in check_source
+    assert 'check_subscription "left Cartesian target"' in check_source
+    assert 'start_topic_check "left current EE pose"' in check_source
     assert "not required by this profile" in check_source
 
 

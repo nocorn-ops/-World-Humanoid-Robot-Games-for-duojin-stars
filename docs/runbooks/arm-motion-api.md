@@ -114,8 +114,9 @@ ros2 topic list -t | grep '/duojin/arm/.*/current_pose'
 ./start.sh --enable-arm-motion
 ```
 
-此模式强制要求 Joint Tracker、左右 Relaxed IK、双臂 Pose/关节目标订阅者、
-双臂 HDAS 执行链、关节反馈和双臂末端位姿全部通过。底盘、躯干、夹爪、IMU、BMS
+此模式强制要求双臂 Pose/关节目标订阅者、双臂 HDAS 执行链、关节反馈和
+双臂末端位姿全部通过。固定节点名只是诊断信息；每个具体 Goal 的 API 门禁还会
+核对预期 SDK 订阅端点。底盘、躯干、夹爪、IMU、BMS
 和相机仍会检查，但失败显示 `[WARN]` 而不阻止手动机械臂 API；
 这些 WARN 仍表示整机比赛环境未就绪。
 
