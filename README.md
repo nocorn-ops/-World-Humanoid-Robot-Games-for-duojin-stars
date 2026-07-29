@@ -66,6 +66,10 @@ preview server，最后进入带 `[duojin]` 提示符的环境 Shell。此时比
 ./start.sh --enable-arm-motion
 ```
 
+该显式机械臂验证模式仍检查所有运动控制、反馈、IK 和末端位姿链路；
+相机仍会被检查并打印，但缺帧只记为 `[WARN]`，不阻止手动机械臂 API 验证。
+无参数的整机 preview 模式仍将相机缺帧记为 `[FAIL]`。
+
 无参数 `./start.sh` 永远不授权真机运动。真机关节或末端运动需要以上正向启动参数，且每个
 Goal 仍必须再显式设置 `execute=true`；Python 函数的默认 `execute=False` 始终只 preview。
 `move_to`/`move_by` 在这两道门同时打开后会真实进入厂商 Relaxed IK，

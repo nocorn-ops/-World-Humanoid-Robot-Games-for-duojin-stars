@@ -6,9 +6,13 @@ import re
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_ROOT = PACKAGE_ROOT.parents[1]
 CONFIG_SOURCE = PACKAGE_ROOT / "duojin_robot_interface" / "arm_server_config.py"
 POSE_ACTION_SOURCE = PACKAGE_ROOT / "duojin_robot_interface" / "arm_pose_action.py"
+SDK_ADAPTER_SOURCE = PACKAGE_ROOT / "duojin_robot_interface" / "arm_sdk_adapter.py"
 CONFIG_FILE = PACKAGE_ROOT / "config" / "arm_motion.yaml"
+START_SOURCE = WORKSPACE_ROOT / "start.sh"
+CONTROL_CHECK_SOURCE = WORKSPACE_ROOT / "scripts" / "check_robot_control_chains.sh"
 
 
 def _safe_literal(node):
@@ -69,6 +73,21 @@ def test_shipped_yaml_matches_every_server_fallback_default() -> None:
 def test_both_default_sources_keep_physical_execution_disabled() -> None:
     assert _yaml_parameter_defaults()["execute"] is False
     assert _server_parameter_defaults()["execute"] is False
+
+
+def test_pose_feedback_topic_matches_robot_observation() -> None:
+    source = SDK_ADAPTER_SOURCE.read_text(encoding="utf-8")
+    assert 'f"/relaxed_ik/motion_control/pose_ee_arm_{arm}"' in source
+    assert 'f"/motion_control/pose_ee_arm_{arm}"' not in source
+
+
+def test_arm_execution_profile_reports_cameras_without_requiring_them() -> None:
+    start_source = START_SOURCE.read_text(encoding="utf-8")
+    check_source = CONTROL_CHECK_SOURCE.read_text(encoding="utf-8")
+    assert '"${DUOJIN_CONTROL_CHECK}" --arm-motion' in start_source
+    assert 'DUOJIN_CAMERA_REQUIRED' not in check_source
+    assert "duojin_camera_required=false" in check_source
+    assert "not required by this profile" in check_source
 
 
 def test_pose_execution_keeps_preview_server_gate_before_publication() -> None:

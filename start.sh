@@ -57,7 +57,11 @@ else
 fi
 
 echo
-"${DUOJIN_CONTROL_CHECK}"
+if [[ "${DUOJIN_ARM_API_MODE}" == "execute" ]]; then
+  "${DUOJIN_CONTROL_CHECK}" --arm-motion
+else
+  "${DUOJIN_CONTROL_CHECK}"
+fi
 
 set +u
 source "${DUOJIN_SDK_SETUP}"

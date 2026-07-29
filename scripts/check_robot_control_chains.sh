@@ -7,6 +7,21 @@ readonly DUOJIN_CHECK_SDK_SETUP="${DUOJIN_CHECK_SDK_ROOT}/setup.bash"
 readonly DUOJIN_CHECK_OVERLAY="${DUOJIN_CHECK_WORKSPACE}/install/setup.bash"
 readonly DUOJIN_CHECK_TIMEOUT_SECONDS="${DUOJIN_CHECK_TIMEOUT_SECONDS:-12}"
 
+if (( $# > 1 )); then
+  echo "Usage: $0 [--arm-motion]" >&2
+  exit 2
+fi
+
+DUOJIN_CHECK_PROFILE="full"
+if (( $# == 1 )); then
+  if [[ "$1" != "--arm-motion" ]]; then
+    echo "Usage: $0 [--arm-motion]" >&2
+    exit 2
+  fi
+  DUOJIN_CHECK_PROFILE="arm-motion"
+fi
+readonly DUOJIN_CHECK_PROFILE
+
 for required_file in "${DUOJIN_CHECK_SDK_SETUP}" "${DUOJIN_CHECK_OVERLAY}"; do
   if [[ ! -f "${required_file}" ]]; then
     echo "Required environment file not found: ${required_file}" >&2
@@ -29,7 +44,7 @@ if ! command -v ros2 >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Checking all R1 Lite device control chains (read-only)..."
+echo "Checking R1 Lite device control chains (profile: ${DUOJIN_CHECK_PROFILE}, read-only)..."
 echo "No motion command will be published by this check."
 
 duojin_check_failures=0
@@ -101,10 +116,12 @@ check_subscription "right gripper actuator" "/motion_control/control_gripper_rig
 declare -a duojin_topic_labels=()
 declare -a duojin_topic_names=()
 declare -a duojin_topic_pids=()
+declare -a duojin_topic_required=()
 
 start_topic_check() {
   local label="$1"
   local topic="$2"
+  local required="${3:-true}"
 
   timeout "${DUOJIN_CHECK_TIMEOUT_SECONDS}s" \
     ros2 topic echo "${topic}" --once \
@@ -114,6 +131,7 @@ start_topic_check() {
   duojin_topic_labels+=("${label}")
   duojin_topic_names+=("${topic}")
   duojin_topic_pids+=("$!")
+  duojin_topic_required+=("${required}")
 }
 
 echo
@@ -129,21 +147,31 @@ start_topic_check "torso IMU" "/hdas/imu_torso"
 start_topic_check "battery/BMS" "/hdas/bms"
 start_topic_check "left current EE pose" "/relaxed_ik/motion_control/pose_ee_arm_left"
 start_topic_check "right current EE pose" "/relaxed_ik/motion_control/pose_ee_arm_right"
-start_topic_check "head left color" "/hdas/camera_head/left_raw/image_raw_color/compressed"
-start_topic_check "head right color" "/hdas/camera_head/right_raw/image_raw_color/compressed"
-start_topic_check "left wrist color" "/hdas/camera_wrist_left/color/image_raw/compressed"
-start_topic_check "left wrist depth" "/hdas/camera_wrist_left/aligned_depth_to_color/image_raw"
-start_topic_check "right wrist color" "/hdas/camera_wrist_right/color/image_raw/compressed"
-start_topic_check "right wrist depth" "/hdas/camera_wrist_right/aligned_depth_to_color/image_raw"
+duojin_camera_required=true
+if [[ "${DUOJIN_CHECK_PROFILE}" == "arm-motion" ]]; then
+  duojin_camera_required=false
+  echo "Camera streams are reported but are not prerequisites for manual arm-motion validation."
+fi
+start_topic_check "head left color" "/hdas/camera_head/left_raw/image_raw_color/compressed" "${duojin_camera_required}"
+start_topic_check "head right color" "/hdas/camera_head/right_raw/image_raw_color/compressed" "${duojin_camera_required}"
+start_topic_check "left wrist color" "/hdas/camera_wrist_left/color/image_raw/compressed" "${duojin_camera_required}"
+start_topic_check "left wrist depth" "/hdas/camera_wrist_left/aligned_depth_to_color/image_raw" "${duojin_camera_required}"
+start_topic_check "right wrist color" "/hdas/camera_wrist_right/color/image_raw/compressed" "${duojin_camera_required}"
+start_topic_check "right wrist depth" "/hdas/camera_wrist_right/aligned_depth_to_color/image_raw" "${duojin_camera_required}"
 
 for index in "${!duojin_topic_pids[@]}"; do
   if wait "${duojin_topic_pids[${index}]}"; then
     printf '  [OK]   %-27s %s\n' \
       "${duojin_topic_labels[${index}]}" "${duojin_topic_names[${index}]}"
   else
-    printf '  [FAIL] %-27s no message on %s\n' \
-      "${duojin_topic_labels[${index}]}" "${duojin_topic_names[${index}]}" >&2
-    duojin_check_failures=$((duojin_check_failures + 1))
+    if [[ "${duojin_topic_required[${index}]}" == "true" ]]; then
+      printf '  [FAIL] %-27s no message on %s\n' \
+        "${duojin_topic_labels[${index}]}" "${duojin_topic_names[${index}]}" >&2
+      duojin_check_failures=$((duojin_check_failures + 1))
+    else
+      printf '  [WARN] %-27s no message on %s (not required by this profile)\n' \
+        "${duojin_topic_labels[${index}]}" "${duojin_topic_names[${index}]}" >&2
+    fi
   fi
 done
 
@@ -154,4 +182,4 @@ if (( duojin_check_failures > 0 )); then
   exit 1
 fi
 
-echo "All required R1 Lite device control chains are online."
+echo "All control chains required by the ${DUOJIN_CHECK_PROFILE} profile are online."

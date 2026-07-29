@@ -63,7 +63,9 @@ class ArmSdkAdapter:
         self.allowed_joint_publishers = frozenset(allowed_joint_publishers)
 
         self.joint_feedback_topic = f"/hdas/feedback_arm_{arm}"
-        self.pose_feedback_topic = f"/motion_control/pose_ee_arm_{arm}"
+        self.pose_feedback_topic = (
+            f"/relaxed_ik/motion_control/pose_ee_arm_{arm}"
+        )
         self.joint_target_topic = f"/motion_target/target_joint_state_arm_{arm}"
         self.pose_target_topic = f"/motion_target/target_pose_arm_{arm}"
 

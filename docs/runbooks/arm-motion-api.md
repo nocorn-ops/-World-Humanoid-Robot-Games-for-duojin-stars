@@ -71,7 +71,7 @@ ros2 interface show duojin_interfaces/action/MoveArmJoints
 
 SDK 标准启动链没有已确认的显式机械 homing 步骤，这不能推导为“底层永远知道
 绝对零点”。首次 L4 或机器人拆装/标定/断电后，先对照实际姿态核对两臂的
-`/hdas/feedback_arm_*` 和 `/motion_control/pose_ee_arm_*`。不得由比赛程序自动修改
+`/hdas/feedback_arm_*` 和 `/relaxed_ik/motion_control/pose_ee_arm_*`。不得由比赛程序自动修改
 `/opt/galaxea/body/hardware.json` 或 joint bias。零点证据和待验证项见
 [`docs/interfaces/arm.md`](../interfaces/arm.md)。
 
@@ -113,6 +113,10 @@ ros2 topic list -t | grep '/duojin/arm/.*/current_pose'
 ```bash
 ./start.sh --enable-arm-motion
 ```
+
+此模式的检查仍要求底盘/躯干/双臂/夹爪控制反馈、Joint Tracker、Relaxed IK
+和双臂末端位姿全部通过。相机数据与手动末端指令无数据依赖，因此相机缺帧
+会显示 `[WARN]` 但不阻止 API 启动；它仍表示整机比赛环境未就绪。
 
 运动只在两道门都打开时发生：
 
@@ -590,7 +594,7 @@ tmux capture-pane -pt duojin_arm_api
 
 ```bash
 ros2 topic echo /hdas/feedback_arm_left --once
-ros2 topic echo /motion_control/pose_ee_arm_left --once
+ros2 topic echo /relaxed_ik/motion_control/pose_ee_arm_left --once
 ros2 topic info -v /motion_target/target_pose_arm_left
 ```
 
@@ -600,7 +604,7 @@ ros2 topic info -v /motion_target/target_pose_arm_left
 
 ```bash
 ros2 run tf2_ros tf2_echo base_link torso_link3
-ros2 topic echo /motion_control/pose_ee_arm_left --once
+ros2 topic echo /relaxed_ik/motion_control/pose_ee_arm_left --once
 ```
 
 核对 pose 消息的 `header.frame_id`。厂商 Relaxed IK 直接使用数值但不使用输入 header 做 TF，
@@ -659,7 +663,7 @@ ros2 topic info -v /motion_target/target_joint_state_arm_left
 
 1. 仍清场并握住急停，运行 `./start.sh`，不绕过任何 `[FAIL]`。
 2. 使用 `start.sh` 自动启动的 preview server，记录每个端点只有一个 server。
-3. 对左右臂各记录一帧 `/hdas/feedback_arm_*` 和 `/motion_control/pose_ee_arm_*`，
+3. 对左右臂各记录一帧 `/hdas/feedback_arm_*` 和 `/relaxed_ik/motion_control/pose_ee_arm_*`，
    核对 header frame、数组长度、数值和实际姿态。
 4. 记录 `base_link` ↔ `torso_link3` TF，并查验两个 `current_pose` 的 frame、数值和更新频率；
    再用已知安全的当前/近邻绝对目标与小相对增量 preview 六个 Action。

@@ -50,7 +50,7 @@
 | 输入 | 末端相对增量 | `MoveArmRelative.Goal` | m；`delta.header.frame_id` 定义轴；Python 默认 `base_link`；单次 | ROS/Python 客户端 | delta 有限、frame/TF 可用、增量不超过配置上限、保持当前朝向 |
 | 输入 | 关节目标 | `MoveArmJoints.Goal` | rad；joint1..joint6；单次 | ROS/Python 客户端 | 恰好 6 项、有限、在控制器有效限位与 margin 内、单次变化不过限 |
 | 输入 | 关节反馈 | `sensor_msgs/msg/JointState` | rad；诊断配置期望约 200 Hz，实际频率待 L3 观测 | `/hdas/feedback_arm_{left,right}` | 至少 6 个有限 position，以 monotonic 接收时刻判断新鲜度 |
-| 输入 | 末端反馈 | `geometry_msgs/msg/PoseStamped` | m/rad；消息声明的 frame | `/motion_control/pose_ee_arm_{left,right}` | frame 非空、位姿有限、四元数有效、反馈新鲜 |
+| 输入 | 末端反馈 | `geometry_msgs/msg/PoseStamped` | m/rad；消息声明的 frame | `/relaxed_ik/motion_control/pose_ee_arm_{left,right}` | frame 非空、位姿有限、四元数有效、反馈新鲜 |
 | 输出 | 末端 SDK 目标 | `geometry_msgs/msg/PoseStamped` | 数值在 `torso_link3`；单次 | `/motion_target/target_pose_arm_{left,right}` | 仅 server/Goal 双重 execute 许可后发布 |
 | 输出 | 关节 SDK 目标 | `sensor_msgs/msg/JointState` | rad 与 rad/s；单次 | `/motion_target/target_joint_state_arm_{left,right}` | position/velocity 均严格 6 项；仅 execute 或 hold 时发布 |
 | 输出 | 动作结果/反馈 | 三个自定义 Action | 结构化状态、误差、当前/最终值 | ROS/Python 客户端 | 只有真实反馈到位才是已执行 SUCCESS |
@@ -108,12 +108,12 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 | `/motion_target/target_pose_arm_*` | 项目→SDK，`PoseStamped` | xyz m、quaternion | subscriber 实际忽略 header；BEST_EFFORT/VOLATILE/depth1 兼容 | Relaxed IK | API；不可有外部 pose publisher | documented |
 | `/motion_target/target_joint_state_arm_*` | 项目/IK→SDK，`JointState` | 6 position rad + 6 正 velocity rad/s | tracker BEST_EFFORT/VOLATILE/depth10 | Joint Tracker | API 或 Relaxed IK；不得有 teleop | documented |
 | `/hdas/feedback_arm_*` | SDK→项目，`JointState` | 使用 position[0:6] | BEST_EFFORT/VOLATILE/depth1；诊断期望 200 Hz | HDAS | HDAS | documented |
-| `/motion_control/pose_ee_arm_*` | SDK→项目，`PoseStamped` | 全身 FK 的 gripper pose | frame/QoS/频率待 L3 实测 | eepose publisher | SDK | documented，frame 待 observed |
+| `/relaxed_ik/motion_control/pose_ee_arm_*` | SDK→项目，`PoseStamped` | 全身 FK 的 gripper pose | frame/QoS/频率待实测 | eepose publisher | SDK | observed；2026-07-29 工控机双臂均收到消息 |
 | TF `base_link ↔ torso_link3` | SDK→项目，TF | 刚体变换 | 最新有效 TF | robot_state_publisher | SDK | documented，时效待 observed |
 
 尚待真机确认的假设：
 
-- `/motion_control/pose_ee_arm_*` 的实际 `header.frame_id`、频率和 QoS 与全身 URDF一致。
+- `/relaxed_ik/motion_control/pose_ee_arm_*` 的实际 `header.frame_id`、频率和 QoS 与全身 URDF一致。
 - `JointState.velocity` 反馈是否稳定存在；本版到位只强依赖已确认的 position。
 - 单次 pose 目标能否在当前工作姿态可靠产生 IK joint target 并由 FK 闭环到位。
 - hold-current 对当前 Joint Tracker 版本的减速/停止效果；未经 L4 不称为硬停止。
@@ -183,7 +183,7 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 | 层级 | 用例 | 命令/步骤 | 期望结果 | 实际证据 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | L0 | Python/Shell/XML/接口静态检查 | compileall、bash -n、XML parse、路径/规模、diff check | 全部通过 | 2026-07-29：全部通过；所有生产模块 ≤400 行、函数 ≤60 行 | passed |
-| L1 | 校验、相对几何、误差、稳定窗口、互斥、生命周期、客户端映射/并发 | `python3 -m pytest -q src/duojin_robot_interface/test` | 正常与失败分支通过 | 2026-07-29：`96 passed in 0.08s` | passed |
+| L1 | 校验、相对几何、误差、稳定窗口、互斥、生命周期、客户端映射/并发 | `python3 -m pytest -q src/duojin_robot_interface/test` | 正常与失败分支通过 | 2026-07-29：`98 passed in 0.09s` | passed |
 | L2 | 工控机 ROS 构建 | `./scripts/build_robot.sh` | rosidl 与两个包构建成功 | 需工控机 | todo |
 | L3 | 真实图 preview | 无参数 `start.sh` 自动启动 preview，调用六个 Action 并读两个 pose 话题 | 无运动消息，frame/反馈/QoS 记录完成 | 需工控机 | todo |
 | L4 | 单臂低风险关节/末端小动作 | 测试记录模板；关节 ≤0.15 rad，末端先测 0.01 m | 关节到位，绝对/相对 Pose 的 FK 误差与 hold 数据符合指标 | 需机器人 | todo |
@@ -201,6 +201,8 @@ CAP-ARM-01/02 → CAP-ARM-03 → CAP-ARM-04 → CAP-ARM-05/06 → CAP-ARM-07
 | 2026-07-29 | 相对位移默认沿 `base_link` 轴，可显式指定其他 frame | 用户确认可支持并接受建议 | 服务端在目标校验时从新鲜当前位姿计算绝对目标 |
 | 2026-07-29 | 公开位姿默认为 `base_link`、只发布新鲜 FK 样本 | 比赛程序需统一坐标与实时查询 | `start.sh` 就绪后话题和终端显示可直接使用 |
 | 2026-07-29 | 放开 `move_to`/`move_by` 实验性物理执行 | 用户已在同版厂商 IK 链验证 Z +3 cm 实际结果，并明确要求优先打通运动 | 两道 execute 门后发布 Pose；事后验证 IK 输出并由 FK 闭环判定结果 |
+| 2026-07-29 | 末端反馈改用真机 observed 话题 | 工控机启动输出证明实际话题带 `/relaxed_ik` 前缀 | API 订阅 `/relaxed_ik/motion_control/pose_ee_arm_*` |
+| 2026-07-29 | 手动机械臂验证不以相机为必需链路 | 右腕相机无数据但双臂、IK、Joint Tracker 和 FK 均正常 | `--enable-arm-motion` 下相机失败记为 WARN；默认整机启动仍视为 FAIL |
 | 2026-07-29 | 使用 tracker 有效限位而非更宽 URDF 限位 | SDK 二进制接口证据 | 越界拒绝，不静默裁剪 |
 
 ## 12. 完成检查
