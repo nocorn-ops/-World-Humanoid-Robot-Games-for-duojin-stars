@@ -11,32 +11,35 @@ readonly DUOJIN_ARM_API_SESSION="duojin_arm_api"
 
 stop_ehi_gateway() {
   local gateway_pattern
+  local quiet_checks=0
+  local saw_gateway=false
   local -a gateway_pids=()
   gateway_pattern='(^|[[:space:]/])uvicorn[[:space:]]+ehi_gateway\.main:app([[:space:]]|$)'
 
-  for _attempt in {1..25}; do
+  for _attempt in {1..75}; do
     mapfile -t gateway_pids < <(
       pgrep -u "$(id -u)" -f "${gateway_pattern}" 2>/dev/null || true
     )
     if (( ${#gateway_pids[@]} == 0 )); then
-      echo "EHI gateway is not running."
-      return 0
+      quiet_checks=$((quiet_checks + 1))
+      if (( quiet_checks >= 15 )); then
+        echo "EHI gateway remained stopped for 3 seconds."
+        return 0
+      fi
+    else
+      quiet_checks=0
+      if [[ "${saw_gateway}" == "false" ]]; then
+        echo "Stopping EHI gateway arm-target publisher: ${gateway_pids[*]}"
+        saw_gateway=true
+      fi
+      kill -TERM "${gateway_pids[@]}" 2>/dev/null || true
     fi
-    if (( _attempt == 1 )); then
-      echo "Stopping EHI gateway arm-target publisher: ${gateway_pids[*]}"
-    fi
-    kill -TERM "${gateway_pids[@]}" 2>/dev/null || true
     sleep 0.2
   done
 
-  mapfile -t gateway_pids < <(
-    pgrep -u "$(id -u)" -f "${gateway_pattern}" 2>/dev/null || true
-  )
-  if (( ${#gateway_pids[@]} > 0 )); then
-    echo "EHI gateway kept running or respawned: ${gateway_pids[*]}" >&2
-    echo "Stop its owning service before autonomous arm control." >&2
-    return 1
-  fi
+  echo "EHI gateway did not remain stopped for 3 continuous seconds." >&2
+  echo "Stop its owning launcher before autonomous arm control." >&2
+  return 1
 }
 
 if (( $# > 1 )) || { (( $# == 1 )) && [[ "$1" != "--enable-arm-motion" ]]; }; then
