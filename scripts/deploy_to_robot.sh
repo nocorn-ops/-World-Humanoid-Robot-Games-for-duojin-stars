@@ -7,8 +7,8 @@ if [[ $# -ne 1 ]]; then
 fi
 
 readonly ROBOT_TARGET="$1"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly DUOJIN_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly DUOJIN_WORKSPACE="$(cd "${DUOJIN_SCRIPT_DIR}/.." && pwd)"
 
 rsync -av \
   --exclude build/ \
@@ -16,7 +16,7 @@ rsync -av \
   --exclude log/ \
   --exclude __pycache__/ \
   --exclude '*.pyc' \
-  "${WORKSPACE_DIR}/" \
+  "${DUOJIN_WORKSPACE}/" \
   "${ROBOT_TARGET}:/home/r1lite/duojin_ws/"
 
 echo "Source synchronized to ${ROBOT_TARGET}:/home/r1lite/duojin_ws/"

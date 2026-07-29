@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly SETUP_CAN_SCRIPT="${HOME}/setupcan.sh"
+readonly SETUP_CAN_SCRIPT="${HOME}/setup_can.sh"
 readonly CAN_SCRIPT="${HOME}/can.sh"
 readonly GALAXEA_ROOT="${HOME}/galaxea/install_430"
 readonly GALAXEA_SETUP="${GALAXEA_ROOT}/setup.bash"
@@ -41,5 +41,5 @@ if ! ros2 topic list | grep -Fq "/motion_target/"; then
 fi
 
 echo "SDK motion-target topics are online."
-echo "Run scripts/start_arm_environment.sh to perform the arm-specific checks."
+echo "Run scripts/check_robot_control_chains.sh to verify every required device chain."
 echo "Note: R1LITEBody.d also starts r1lite_teleop; stop that tmux session before autonomous arm control."
