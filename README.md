@@ -83,7 +83,9 @@ Goal 仍必须再显式设置 `execute=true`；Python 函数的默认 `execute=F
 Action，比赛 Python 程序推荐使用
 `duojin_robot_interface.arm_client.ArmClient`。完整前置条件、ROS 命令、Python
 示例和分级真机验收见
-[`docs/runbooks/arm-motion-api.md`](docs/runbooks/arm-motion-api.md)。
+[`docs/runbooks/arm-motion-api.md`](docs/runbooks/arm-motion-api.md)；面向操作员的
+`arm` 终端命令、preview/执行双门和故障处理见根目录
+[`ARM_CLI.md`](ARM_CLI.md)。
 
 在 `start.sh` 打开的 `[duojin]` Shell 中，最小 Python 调用是：
 

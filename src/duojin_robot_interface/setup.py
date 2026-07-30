@@ -34,6 +34,7 @@ setup(
     license="Apache-2.0",
     entry_points={
         "console_scripts": [
+            "arm = duojin_robot_interface.arm_cli:main",
             "arm_motion_server = duojin_robot_interface.arm_motion_server:main",
             "arm_pose_display = duojin_robot_interface.arm_pose_display:main",
         ],
