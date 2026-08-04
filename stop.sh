@@ -11,6 +11,23 @@ readonly DUOJIN_CURRENT_UID="$(id -u)"
 echo "=== Stopping Duojin and ROS 2 ==="
 echo "The hardware emergency stop remains the primary safety mechanism."
 
+readonly DUOJIN_ARM_API_SESSION="duojin_arm_api"
+if tmux has-session -t "${DUOJIN_ARM_API_SESSION}" 2>/dev/null; then
+  echo "Stopping the arm API while SDK feedback is still available..."
+  tmux send-keys -t "${DUOJIN_ARM_API_SESSION}" C-c
+  for _attempt in {1..80}; do
+    if ! tmux has-session -t "${DUOJIN_ARM_API_SESSION}" 2>/dev/null; then
+      break
+    fi
+    sleep 0.1
+  done
+  if tmux has-session -t "${DUOJIN_ARM_API_SESSION}" 2>/dev/null; then
+    echo "Arm API did not stop cleanly; use the hardware emergency stop if motion " \
+      "cannot be confirmed, then forcing the API tmux session closed." >&2
+    tmux kill-session -t "${DUOJIN_ARM_API_SESSION}"
+  fi
+fi
+
 if [[ -f "${DUOJIN_GALAXEA_SETUP}" ]]; then
   echo "Sending a best-effort chassis stop and brake command..."
   (

@@ -16,7 +16,7 @@ setup(
     zip_safe=True,
     maintainer="Duojin Team",
     maintainer_email="duojin@example.com",
-    description="Safe Cartesian motion-path validation for the Galaxea R1 Lite arm.",
+    description="Read-only Cartesian target preview for the Galaxea R1 Lite arm.",
     license="Apache-2.0",
     entry_points={
         "console_scripts": [

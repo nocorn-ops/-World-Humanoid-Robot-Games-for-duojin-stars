@@ -27,11 +27,11 @@ for argument in "$@"; do
   fi
 done
 
-if [[ "${execute_requested}" == true ]] && command -v tmux >/dev/null 2>&1 \
-  && tmux has-session -t r1lite_teleop 2>/dev/null; then
-  echo "Refusing autonomous arm motion while the r1lite_teleop session is running." >&2
-  echo "Stop that SDK teleoperation session, then run this command again." >&2
-  exit 1
+if [[ "${execute_requested}" == true ]]; then
+  echo "Physical Cartesian diagnostic execution is disabled." >&2
+  echo "Vendor Relaxed IK publishes joints before project-side validation; use the " \
+    "unified API preview and wait for the documented IK isolation work." >&2
+  exit 2
 fi
 
 exec ros2 run duojin_arm_test move_arm_to_pose "$@"

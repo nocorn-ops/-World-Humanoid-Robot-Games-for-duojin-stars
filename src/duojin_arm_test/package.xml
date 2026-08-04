@@ -3,7 +3,7 @@
 <package format="3">
   <name>duojin_arm_test</name>
   <version>0.1.0</version>
-  <description>Safe Cartesian motion-path validation for the Galaxea R1 Lite arm.</description>
+  <description>Read-only Cartesian target preview for the Galaxea R1 Lite arm.</description>
   <maintainer email="duojin@example.com">Duojin Team</maintainer>
   <license>Apache-2.0</license>
 
